@@ -1,0 +1,17 @@
+{
+  "name": "@stakehouse/persistence-sqlite",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@stakehouse/domain": "*",
+    "@stakehouse/persistence": "*",
+    "better-sqlite3": "^12.11.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0"
+  }
+}
