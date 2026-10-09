@@ -6,7 +6,6 @@ import {
   seedIfEmpty,
 } from '@stakehouse/seeder';
 import { computeStandings, poolBalance } from '@stakehouse/domain';
-import type { LeagueConfig } from '@stakehouse/domain';
 import { createFakeStore } from '@stakehouse/persistence';
 import type { StakehouseStore } from '@stakehouse/persistence';
 
