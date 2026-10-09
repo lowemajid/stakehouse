@@ -8,6 +8,7 @@ import { BOARD_PAGE, filterBoard, type PositionFilter } from '../lib/draft/board
 import { formatCountdown, readClock } from '../lib/draft/draftClock';
 import { pickRejectionMessage } from '../lib/draft/pickMessages';
 import { addToQueue, moveInQueue, removeFromQueue } from '../lib/draft/queueLogic';
+import { groupRecapByRound } from '../lib/draft/recap';
 import { useDraftFeed } from '../lib/useDraftFeed';
 import { useNow } from '../lib/useNow';
 import { useApi } from '../state/apiContext';
@@ -122,6 +123,15 @@ export function DraftRoomScreen({
     });
   }
 
+  /** Handoff: the season engine simulates week 1, then the room yields to
+   * the league detail where the season views live. */
+  function startSeason(): void {
+    void run(async () => {
+      await client.simulateNextWeek(leagueId);
+      onBack();
+    });
+  }
+
   function updateQueue(next: string[]): void {
     setQueue(next);
     setQueueDirty(true);
@@ -219,7 +229,9 @@ export function DraftRoomScreen({
             </>
           ) : null}
 
-          {view.status === 'complete' ? <RecapCard view={view} nameById={nameById} /> : null}
+          {view.status === 'complete' ? (
+            <RecapCard view={view} nameById={nameById} busy={busy} onStartSeason={startSeason} />
+          ) : null}
         </ScrollView>
       )}
 
@@ -604,31 +616,45 @@ function RecentPicksCard({
   );
 }
 
-/** Recap board: the whole draft in snake order (spec: Complete state). */
+/** The completed draft: every pick in snake order, then the season handoff. */
 function RecapCard({
   view,
   nameById,
+  busy,
+  onStartSeason,
 }: {
   view: DraftView;
   nameById: Map<string, PlayerCardView>;
+  busy: boolean;
+  onStartSeason(): void;
 }): ReactElement {
+  const rounds = groupRecapByRound(view.picks, view.seats.length);
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>Draft complete — {view.picks.length} picks, recap</Text>
-      {view.picks.map((pick) => {
-        const seat = view.seats.find((candidate) => candidate.id === pick.managerId);
-        const player = nameById.get(pick.playerId);
-        return (
-          <View key={pick.overall} style={styles.rowBetween}>
-            <Text style={styles.lede}>
-              #{pick.overall} {seat?.displayName ?? pick.managerId}
-            </Text>
-            <Text style={styles.lede}>
-              {player ? `${player.name} · ${player.position}` : pick.playerId}
-            </Text>
-          </View>
-        );
-      })}
+      <Text style={styles.cardTitle}>DRAFT COMPLETE — {view.picks.length} picks</Text>
+      {rounds.map((round) => (
+        <View key={round.round} style={local.roundBlock}>
+          <Text style={local.roundLabel}>ROUND {round.round}</Text>
+          {round.picks.map((pick) => {
+            const seat = view.seats.find((candidate) => candidate.id === pick.managerId);
+            const player = nameById.get(pick.playerId);
+            return (
+              <View key={pick.overall} style={styles.rowBetween}>
+                <Text style={styles.lede}>
+                  #{pick.overall} {seat?.displayName ?? pick.managerId}
+                </Text>
+                <Text style={styles.lede}>
+                  {player ? `${player.name} · ${player.position}` : pick.playerId}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      ))}
+      <Button label="Start week 1" onPress={onStartSeason} busy={busy} />
+      <Text style={styles.emptyText}>
+        Hands the league to the season engine — week 1 simulates and the league detail takes over.
+      </Text>
     </View>
   );
 }
@@ -693,6 +719,16 @@ const local = StyleSheet.create({
   toastTitle: {
     color: colors.brass,
     fontWeight: '600',
+  },
+  roundBlock: {
+    gap: 4,
+    marginBottom: 6,
+  },
+  roundLabel: {
+    color: colors.brass,
+    fontFamily: fontFamilies.mono,
+    fontSize: 12,
+    marginTop: 6,
   },
   onClockText: {
     color: colors.brass,
