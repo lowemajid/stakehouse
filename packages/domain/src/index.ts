@@ -9,3 +9,9 @@ export * from './errors';
 export * from './leagueConfig';
 export * from './ledger';
 export * from './money';
+export * from './scoring';
+export * from './simulation';
+// Position is defined identically in draft.ts and scoring.ts (the two slices
+// landed concurrently); the explicit re-export resolves the star-export
+// ambiguity at the package boundary.
+export type { Position } from './scoring';

@@ -257,10 +257,23 @@ describe('drawStatLine', () => {
     for (const card of Object.values(league.players)) {
       for (const week of [1, WEEK, WEEK + 1]) {
         const stats = drawStatLine(card, LEAGUE_ID, week);
-        for (const value of Object.values(stats)) {
-          for (const stat of typeof value === 'number' ? [value] : Object.values(value)) {
-            expect(Number.isInteger(stat) && stat >= 0).toBe(true);
-          }
+        const flat: number[] = [
+          stats.passYards,
+          stats.passTd,
+          stats.interceptions,
+          stats.rushYards,
+          stats.rushTd,
+          stats.receptions,
+          stats.fumblesLost,
+          ...Object.values(stats.fgMade),
+          stats.extraPointsMade,
+          stats.sacks,
+          stats.takeaways,
+          stats.defensiveTd,
+          stats.pointsAllowed,
+        ];
+        for (const stat of flat) {
+          expect(Number.isInteger(stat) && stat >= 0).toBe(true);
         }
       }
     }
