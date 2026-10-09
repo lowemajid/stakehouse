@@ -1,14 +1,8 @@
-/* Mirrors packages/theme — the TS tokens stay the cross-client source of truth. */
-:root {
-  --sh-felt-black: #0b0e0b;
-  --sh-felt-900: #101612;
-  --sh-felt-700: #16261d;
-  --sh-felt-500: #1f3a2b;
-  --sh-brass: #c9a227;
-  --sh-cream: #f2ede3;
-  --sh-blood: #b4522f;
-}
-
+/*
+ * Global base styles. Color tokens come from @stakehouse/theme/tokens.css
+ * and font faces/variables from ./styles/fonts.css — both imported in
+ * main.tsx ahead of this file. Nothing here hardcodes a palette value.
+ */
 * {
   box-sizing: border-box;
 }
@@ -17,9 +11,5 @@ body {
   margin: 0;
   background: var(--sh-felt-black);
   color: var(--sh-cream);
-  font-family:
-    'Inter',
-    system-ui,
-    -apple-system,
-    sans-serif;
+  font-family: var(--sh-font-ui);
 }

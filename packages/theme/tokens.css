@@ -1,0 +1,14 @@
+/*
+ * Stakehouse color tokens — the CSS mirror of packages/theme/src/tokens.ts.
+ * Kept in sync by tokens.css.test.ts; do not edit values here without the
+ * TypeScript constants (and the spec table) agreeing.
+ */
+:root {
+  --sh-felt-black: #0b0e0b; /* page background */
+  --sh-felt-900: #101612; /* screens, cards */
+  --sh-felt-700: #16261d; /* raised panels, table heads */
+  --sh-felt-500: #1f3a2b; /* active/selected accents */
+  --sh-brass: #c9a227; /* money and money only */
+  --sh-cream: #f2ede3; /* primary text */
+  --sh-blood: #b4522f; /* negative ledger values, losses */
+}
