@@ -95,7 +95,7 @@ describe('poolBalance — always derived, never stored', () => {
   });
 
   it('equals the exact sum of its entries', () => {
-    const ledger = [
+    const entries: NewEntry[] = [
       buyIn('mgr-1', 10000),
       buyIn('mgr-2', 10000),
       buyIn('mgr-3', 10000),
@@ -104,6 +104,7 @@ describe('poolBalance — always derived, never stored', () => {
       entry({ kind: 'payout', amountCents: cents(-27000), memo: 'weekly prize' }),
       entry({ kind: 'refund', amountCents: cents(-10000), memo: 'league cancelled' }),
     ];
+    const ledger = entries.reduce((acc, next) => record(acc, next), [] as LedgerEntry[]);
     // 40000 + 500 - 27000 - 10000 = 3500 — no float drift allowed
     expect(poolBalance(ledger)).toBe(3500);
   });
