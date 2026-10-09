@@ -1,12 +1,6 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import {
-  draftedLeague,
-  expectApiError,
-  paidLeague,
-  signIn,
-  T0,
-} from './testSupport';
+import { draftedLeague, expectApiError, paidLeague, signIn, T0 } from './testSupport';
 
 /**
  * The draft route contract: snake integrity, guarded transitions, the
@@ -113,11 +107,13 @@ describe('POST /api/leagues/:id/draft/pick — the reject-reason matrix', () => 
       overall: 1,
       managerId: world.managerIds[0],
       playerId: 'p-0',
-      at: '2026-10-01T12:00:00.000Z', // the injected server clock, not a wall clock
+      at: '2026-10-05T20:00:00.000Z', // the injected server clock, not a wall clock
     });
     expect(res.body.draft.clock.overall).toBe(2);
     expect(res.body.draft.clock.managerId).toBe(world.managerIds[1]);
-    expect(res.body.draft.clock.deadline).toBe(T0 + 2 * PICK_MS);
+    // The clock resets to now + PICK_MS from the pick's instant — the pick
+    // landed at T0 (no clock advance), so the new deadline equals the old one.
+    expect(res.body.draft.clock.deadline).toBe(T0 + PICK_MS);
   });
 
   it('rejects an out-of-turn pick — 409 not-your-turn', async () => {
@@ -145,9 +141,9 @@ describe('POST /api/leagues/:id/draft/pick — the reject-reason matrix', () => 
     const world = await paidLeague();
     await startDraft(world);
     world.advanceMs(PICK_MS + 1); // the injected clock passes the deadline
-    const res = await world.agents[0]!
-      .post(`/api/leagues/${world.leagueId}/draft/pick`)
-      .send({ playerId: 'p-0' });
+    const res = await world.agents[0]!.post(`/api/leagues/${world.leagueId}/draft/pick`).send({
+      playerId: 'p-0',
+    });
     expectApiError(res, 409, 'clock-expired');
   });
 
@@ -158,9 +154,9 @@ describe('POST /api/leagues/:id/draft/pick — the reject-reason matrix', () => 
     // manager 3, whose QB slot is full — a fifth QB fits no slot (FLEX never
     // takes a QB), so the guard rejects it even though the player is untaken.
     for (let overall = 1; overall <= 4; overall += 1) {
-      const picked = await world.agents[overall - 1]!
-        .post(`/api/leagues/${world.leagueId}/draft/pick`)
-        .send({ playerId: `p-${overall - 1}` });
+      const picked = await world.agents[overall - 1]!.post(
+        `/api/leagues/${world.leagueId}/draft/pick`,
+      ).send({ playerId: `p-${overall - 1}` });
       expect(picked.status).toBe(201);
     }
     const res = await world.agents[3]!.post(`/api/leagues/${world.leagueId}/draft/pick`).send({
@@ -234,9 +230,9 @@ describe('queue and autopick', () => {
   it('saves and returns a manager queue', async () => {
     const world = await paidLeague();
     await startDraft(world);
-    const res = await world.agents[0]!
-      .put(`/api/leagues/${world.leagueId}/draft/queue`)
-      .send({ queue: ['p-0', 'p-1'] });
+    const res = await world.agents[0]!.put(`/api/leagues/${world.leagueId}/draft/queue`).send({
+      queue: ['p-0', 'p-1'],
+    });
     expect(res.status).toBe(200);
     expect(res.body.queue).toStrictEqual(['p-0', 'p-1']);
   });
@@ -244,18 +240,18 @@ describe('queue and autopick', () => {
   it('rejects a queue with duplicates', async () => {
     const world = await paidLeague();
     await startDraft(world);
-    const res = await world.agents[0]!
-      .put(`/api/leagues/${world.leagueId}/draft/queue`)
-      .send({ queue: ['p-0', 'p-0'] });
+    const res = await world.agents[0]!.put(`/api/leagues/${world.leagueId}/draft/queue`).send({
+      queue: ['p-0', 'p-0'],
+    });
     expectApiError(res, 400, 'validation-error');
   });
 
   it('autopicks from the queue when the clock expires', async () => {
     const world = await paidLeague();
     await startDraft(world);
-    await world.agents[0]!
-      .put(`/api/leagues/${world.leagueId}/draft/queue`)
-      .send({ queue: ['p-0'] });
+    await world.agents[0]!.put(`/api/leagues/${world.leagueId}/draft/queue`).send({
+      queue: ['p-0'],
+    });
     world.advanceMs(PICK_MS + 1);
     const res = await world.agents[0]!.post(`/api/leagues/${world.leagueId}/draft/autopick`);
     expect(res.status).toBe(200);
@@ -263,7 +259,7 @@ describe('queue and autopick', () => {
       overall: 1,
       managerId: world.managerIds[0],
       playerId: 'p-0',
-      at: '2026-10-01T12:00:00.000Z',
+      at: '2026-10-05T20:00:30.001Z', // deadline + 1ms under the injected clock
     });
     expect(res.body.draft.clock.overall).toBe(2);
   });

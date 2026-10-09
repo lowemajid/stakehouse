@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { leagueId } from '@stakehouse/domain';
+import type { Cents } from '@stakehouse/domain';
 import {
   draftedLeague,
   expectApiError,
@@ -29,7 +30,7 @@ describe('POST /api/session', () => {
     const res = await request(app).post('/api/session').send(USER(0));
     expect(res.status).toBe(200);
     expect(res.body.user).toStrictEqual(USER(0));
-    const cookie = res.headers['set-cookie'][0] as string;
+    const cookie = res.headers['set-cookie']?.[0] ?? '';
     expect(cookie).toContain('sh_session=');
     expect(cookie).toContain('HttpOnly');
     expect(cookie).toContain('SameSite=Lax');
@@ -230,7 +231,7 @@ describe('GET /api/leagues/:id/ledger', () => {
         leagueId: leagueId(world.leagueId),
         kind: 'commissioner-credit',
         managerId: null,
-        amountCents: 5_00,
+        amountCents: 5_00 as Cents,
         memo: 'promo credit',
         at: '2026-10-01T12:00:00.000Z',
       },
@@ -451,7 +452,7 @@ describe('POST /api/leagues/:id/ledger/payouts/distribute', () => {
     const world = await simulatedLeague();
     await world.agents[0]!.post(`/api/leagues/${world.leagueId}/ledger/payouts/distribute`);
     const res = await request(world.app).get(`/api/leagues/${world.leagueId}/ledger`);
-    expect(res.body.entries).toHaveLength(2 + 3); // two buy-ins, three payouts
+    expect(res.body.entries).toHaveLength(4 + 3); // four buy-ins, three payouts
     expect(res.body.poolCents).toBe(0);
   });
 });

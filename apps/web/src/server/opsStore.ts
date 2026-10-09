@@ -56,16 +56,24 @@ export interface QueueRepository {
   set(leagueId: string, queues: QueueMap): void;
 }
 
+export interface CommissionerRepository {
+  /** The commissioner's email for one league; undefined when unset. */
+  get(leagueId: string): string | undefined;
+  set(leagueId: string, email: string): void;
+}
+
 export interface LeagueOpsStore {
   readonly waivers: WaiverRepository;
   readonly trades: TradeRepository;
   readonly queues: QueueRepository;
+  readonly commissioners: CommissionerRepository;
 }
 
 export function createInMemoryOpsStore(): LeagueOpsStore {
   const waivers = new Map<string, WaiverRecord[]>();
   const trades = new Map<string, TradeRecord[]>();
   const queues = new Map<string, QueueMap>();
+  const commissioners = new Map<string, string>();
 
   const clone = <T>(value: T): T => structuredClone(value);
 
@@ -98,6 +106,14 @@ export function createInMemoryOpsStore(): LeagueOpsStore {
       },
       set(leagueId, next) {
         queues.set(leagueId, clone(next));
+      },
+    },
+    commissioners: {
+      get(leagueId) {
+        return commissioners.get(leagueId);
+      },
+      set(leagueId, email) {
+        commissioners.set(leagueId, email);
       },
     },
   };

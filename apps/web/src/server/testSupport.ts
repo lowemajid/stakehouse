@@ -140,10 +140,11 @@ export async function paidLeague(payers = 4): Promise<PaidLeague> {
   expect(created.status).toBe(201);
   const leagueId: string = created.body.league.id;
 
-  const agents: Session[] = [commissioner];
+  const agents: Session[] = [];
   const managerIds: string[] = [];
   for (let i = 0; i < payers; i++) {
     const session = i === 0 ? commissioner : await signIn(world.app, i);
+    agents.push(session);
     const joined = await session.post(`/api/leagues/${leagueId}/join`);
     expect(joined.status).toBe(201);
     managerIds.push(joined.body.manager.id);
