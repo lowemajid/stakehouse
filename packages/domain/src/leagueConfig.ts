@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { cents } from './money';
+import { cents, payoutSplitSchema } from './money';
 import type { Cents } from './money';
 
 /**
@@ -47,14 +47,6 @@ const leagueSizeSchema = z.union([
   z.literal(10),
   z.literal(12),
 ]);
-
-const payoutPercentage = z.number().int().min(0).max(100);
-
-export const payoutSplitSchema = z
-  .tuple([payoutPercentage, payoutPercentage, payoutPercentage])
-  .refine((split) => split[0] + split[1] + split[2] === 100, {
-    message: 'payout split must total exactly 100%',
-  });
 
 export const rosterSchema = z
   .object({

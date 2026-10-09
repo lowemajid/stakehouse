@@ -2,12 +2,12 @@ import { DomainError } from './errors';
 import type { LeagueId, ManagerId } from './brand';
 import { addCents, cents, sumCents, ZERO_CENTS } from './money';
 import type { Cents } from './money';
-import { payoutSplitSchema } from './leagueConfig';
 
 /**
- * The ledger: append-only entries, a balance that is always derived (never
- * stored — there is no cached total to drift), and payout/refund plans that
- * move money exactly. Amounts are signed from the pool's perspective:
+ * The ledger: append-only entries and a balance that is always derived (never
+ * stored — there is no cached total to drift). This module orchestrates;
+ * every arithmetic operation lives in money.ts, enforced by the lint guard
+ * in eslint.config.js. Amounts are signed from the pool's perspective:
  * positive flows in (buy-ins, credits), negative flows out (payouts, refunds).
  */
 export type LedgerKind = 'buy-in' | 'refund' | 'payout' | 'commissioner-credit';
@@ -23,11 +23,6 @@ export interface LedgerEntry {
 }
 
 export type NewEntry = Omit<LedgerEntry, 'id'>;
-
-export interface Payout {
-  place: 1 | 2 | 3;
-  amountCents: Cents;
-}
 
 const SIGN_RULES: Record<LedgerKind, { inflow: boolean; requiresManager: boolean }> = {
   'buy-in': { inflow: true, requiresManager: true },
@@ -101,31 +96,6 @@ export function poolBalance(entries: readonly LedgerEntry[]): Cents {
       return entry.amountCents;
     }),
   );
-}
-
-export function payoutPlan(pool: Cents, split: [number, number, number]): Payout[] {
-  const parsed = payoutSplitSchema.safeParse(split);
-  if (!parsed.success) {
-    throw new DomainError(
-      'invalid-payout-split',
-      `payout split must be three percentages summing to exactly 100, got [${split.join(', ')}]`,
-    );
-  }
-  // Largest-remainder distribution in integer arithmetic: floor each share,
-  // then hand the leftover cents to the largest fractional remainders, ties
-  // resolved toward the better place. Guarantees Σ payout === pool exactly.
-  const shares = split.map((pct) => Math.floor((pool * pct) / 100));
-  let leftover = pool - shares.reduce((sum, share) => sum + share, 0);
-  const order = split
-    .map((pct, index) => ({ index, remainder: (pool * pct) % 100 }))
-    .sort((a, b) => b.remainder - a.remainder || a.index - b.index);
-  for (const { index } of order) {
-    if (leftover === 0) break;
-    shares[index] = shares[index]! + 1;
-    leftover = leftover - 1;
-  }
-  const PLACES = [1, 2, 3] as const;
-  return PLACES.map((place, index) => ({ place, amountCents: cents(shares[index]!) }));
 }
 
 export function refundEntries(
