@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DomainError } from './errors';
 import { leagueId, managerId } from './brand';
 import { cents, payoutPlan } from './money';
-import { poolBalance, record, refundEntries } from './ledger';
+import { paidByManager, poolBalance, record, refundEntries, withRunningBalance } from './ledger';
 import type { LedgerEntry, NewEntry } from './ledger';
 
 const lg = leagueId('lg-frozen-rope');
@@ -175,6 +175,106 @@ describe('payoutPlan — the pool distributes exactly', () => {
   });
 });
 
+describe('withRunningBalance — the balance derived, row by row', () => {
+  it('folds a running balance that ends exactly at the pool balance', () => {
+    const ledger = record(
+      record(record([], buyIn('mgr-1', 10000)), buyIn('mgr-2', 10000)),
+      entry({ kind: 'commissioner-credit', managerId: null, amountCents: cents(500) }),
+    );
+    const balanced = withRunningBalance(ledger);
+    expect(balanced.map((e) => e.balanceAfterCents)).toEqual([10000, 20000, 20500]);
+    // the entries themselves ride along untouched
+    expect(balanced.map((e) => e.id)).toEqual(ledger.map((e) => e.id));
+    expect(balanced[2]!.kind).toBe('commissioner-credit');
+  });
+
+  it('walks outflows back down — payouts and refunds included', () => {
+    const ledger = record(
+      record(
+        record(record([], buyIn('mgr-1', 10000)), buyIn('mgr-2', 10000)),
+        entry({
+          kind: 'payout',
+          managerId: managerId('mgr-1'),
+          amountCents: cents(-7000),
+          memo: 'season payout — 1st place',
+        }),
+      ),
+      entry({
+        kind: 'refund',
+        managerId: managerId('mgr-2'),
+        amountCents: cents(-3000),
+        memo: 'seat refund',
+      }),
+    );
+    expect(withRunningBalance(ledger).map((e) => e.balanceAfterCents)).toEqual([
+      10000, 20000, 13000, 10000,
+    ]);
+  });
+
+  it('is empty for an empty ledger and rejects a poisoned entry', () => {
+    expect(withRunningBalance([])).toEqual([]);
+    const poisoned: LedgerEntry[] = [
+      { ...record([], buyIn('mgr-1', 10000))[0]!, amountCents: forgedCents(0.1) },
+    ];
+    expect(() => withRunningBalance(poisoned)).toThrow(DomainError);
+  });
+});
+
+describe('paidByManager — the net each manager holds in the pool', () => {
+  it('nets buy-ins minus refunds per manager, sorted by manager id', () => {
+    const ledger = record(
+      record(
+        record(record([], buyIn('mgr-2', 5000)), buyIn('mgr-1', 10000)),
+        entry({
+          kind: 'refund',
+          managerId: managerId('mgr-2'),
+          amountCents: cents(-2000),
+          memo: 'partial seat refund',
+        }),
+      ),
+      buyIn('mgr-1', 2500),
+    );
+    expect(paidByManager(ledger)).toStrictEqual([
+      { managerId: managerId('mgr-1'), paidCents: cents(12500) },
+      { managerId: managerId('mgr-2'), paidCents: cents(3000) },
+    ]);
+  });
+
+  it('payouts and pool-level credits never count as paid', () => {
+    const ledger = record(
+      record(
+        record([], buyIn('mgr-1', 10000)),
+        entry({
+          kind: 'payout',
+          managerId: managerId('mgr-1'),
+          amountCents: cents(-5000),
+          memo: 'weekly prize',
+        }),
+      ),
+      entry({ kind: 'commissioner-credit', managerId: null, amountCents: cents(500) }),
+    );
+    expect(paidByManager(ledger)).toStrictEqual([
+      { managerId: managerId('mgr-1'), paidCents: cents(10000) },
+    ]);
+  });
+
+  it('keeps a fully refunded seat visible at a net of zero', () => {
+    const ledger = record(
+      record([], buyIn('mgr-1', 10000)),
+      entry({
+        kind: 'refund',
+        managerId: managerId('mgr-1'),
+        amountCents: cents(-10000),
+        memo: 'seat refund',
+      }),
+    );
+    expect(paidByManager(ledger)).toStrictEqual([
+      { managerId: managerId('mgr-1'), paidCents: cents(0) },
+    ]);
+    expect(paidByManager([])).toStrictEqual([]);
+  });
+});
+
 describe('refundEntries — cancellation returns each paid buy-in exactly', () => {
   it('refunds every manager the exact sum of their buy-ins, and nothing for others', () => {
     const ledger = record(
@@ -198,6 +298,37 @@ describe('refundEntries — cancellation returns each paid buy-in exactly', () =
       managerId: managerId('mgr-2'),
       amountCents: cents(-15000),
     });
+  });
+
+  it('refunds only the unpaid remainder when a seat was already partially refunded', () => {
+    const ledger = record(
+      record([], buyIn('mgr-1', 10000)),
+      entry({
+        kind: 'refund',
+        managerId: managerId('mgr-1'),
+        amountCents: cents(-4000),
+        memo: 'seat refund',
+      }),
+    );
+    const refunds = refundEntries(lg, ledger, AT);
+    expect(refunds).toHaveLength(1);
+    expect(refunds[0]).toMatchObject({
+      managerId: managerId('mgr-1'),
+      amountCents: cents(-6000), // 10000 paid, 4000 already back — the rest, to the cent
+    });
+  });
+
+  it('skips a seat whose net is already zero — a zero refund cannot exist', () => {
+    const ledger = record(
+      record([], buyIn('mgr-1', 10000)),
+      entry({
+        kind: 'refund',
+        managerId: managerId('mgr-1'),
+        amountCents: cents(-10000),
+        memo: 'seat refund',
+      }),
+    );
+    expect(refundEntries(lg, ledger, AT)).toEqual([]);
   });
 
   it('lands the pool back at zero once refunds are recorded', () => {

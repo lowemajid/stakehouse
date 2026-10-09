@@ -3,11 +3,14 @@ import { Router } from 'express';
 import {
   leagueId,
   managerId,
+  paidByManager,
   parseLeagueConfig,
   payoutEntries,
   poolBalance,
   record,
   seasonPayoutRecipients,
+  withRunningBalance,
+  ZERO_CENTS,
 } from '@stakehouse/domain';
 import type { LedgerEntry } from '@stakehouse/domain';
 import type { LeagueRecord, ManagerRecord } from '@stakehouse/persistence';
@@ -121,7 +124,25 @@ export function leagueRoutes(ctx: ApiContext): Router {
   router.get('/leagues/:id/ledger', (req, res) => {
     const league = requireLeague(ctx, req.params.id!);
     const entries = ctx.store.ledger.list(league.id);
-    res.json({ entries: entries.map(publicEntry), poolCents: poolBalance(entries) });
+    // The running balance is derived here, once, from the same entries the
+    // pool derives from — the client renders balances and never folds money.
+    const balanced = withRunningBalance(entries);
+    const netPaid = new Map(
+      paidByManager(entries).map((seat) => [String(seat.managerId), seat.paidCents]),
+    );
+    const seats = ctx.store.managers.list(league.id).map((manager) => ({
+      id: String(manager.id),
+      displayName: manager.displayName,
+      paidCents: netPaid.get(String(manager.id)) ?? ZERO_CENTS,
+    }));
+    res.json({
+      entries: balanced.map((entry) => ({
+        ...publicEntry(entry),
+        balanceAfterCents: entry.balanceAfterCents,
+      })),
+      poolCents: poolBalance(entries),
+      seats,
+    });
   });
 
   router.post('/leagues/:id/ledger/payouts/distribute', (req, res) => {

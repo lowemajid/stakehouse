@@ -138,7 +138,9 @@ describe('LeaguePage — ledger tab', () => {
   it('an empty ledger says so instead of rendering nothing', async () => {
     renderLeague(
       '/leagues/lg-open/ledger',
-      makeFakeApi({ getLedger: vi.fn().mockResolvedValue({ entries: [], poolCents: 0 }) }),
+      makeFakeApi({
+        getLedger: vi.fn().mockResolvedValue({ entries: [], poolCents: 0, seats: [] }),
+      }),
     );
     expect(await screen.findByText(/the books are empty/i)).toBeInTheDocument();
   });

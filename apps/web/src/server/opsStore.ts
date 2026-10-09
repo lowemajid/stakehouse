@@ -62,11 +62,23 @@ export interface CommissionerRepository {
   set(leagueId: string, email: string): void;
 }
 
+/**
+ * Cancellation markers. The league record itself is never deleted — a voided
+ * league keeps its seats, its ledger, and its page; this is only the flag
+ * that says the books closed and every buy-in went back.
+ */
+export interface CancellationRepository {
+  /** The instant a league was cancelled, if it was. */
+  get(leagueId: string): string | undefined;
+  set(leagueId: string, at: string): void;
+}
+
 export interface LeagueOpsStore {
   readonly waivers: WaiverRepository;
   readonly trades: TradeRepository;
   readonly queues: QueueRepository;
   readonly commissioners: CommissionerRepository;
+  readonly cancellations: CancellationRepository;
 }
 
 export function createInMemoryOpsStore(): LeagueOpsStore {
@@ -74,6 +86,7 @@ export function createInMemoryOpsStore(): LeagueOpsStore {
   const trades = new Map<string, TradeRecord[]>();
   const queues = new Map<string, QueueMap>();
   const commissioners = new Map<string, string>();
+  const cancellations = new Map<string, string>();
 
   const clone = <T>(value: T): T => structuredClone(value);
 
@@ -114,6 +127,14 @@ export function createInMemoryOpsStore(): LeagueOpsStore {
       },
       set(leagueId, email) {
         commissioners.set(leagueId, email);
+      },
+    },
+    cancellations: {
+      get(leagueId) {
+        return cancellations.get(leagueId);
+      },
+      set(leagueId, at) {
+        cancellations.set(leagueId, at);
       },
     },
   };

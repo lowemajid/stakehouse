@@ -93,6 +93,8 @@ function leagueViewFixture(config: LeagueConfig): object {
     config,
     seatsFilled: 3,
     poolCents: 7500,
+    commissionerEmail: 'majid@stakehouse.test',
+    cancelledAt: null,
   };
 }
 
@@ -204,13 +206,19 @@ describe('payBuyIn', () => {
 });
 
 describe('getLedger', () => {
-  it('parses entries and the derived pool', async () => {
+  it('parses entries, the derived pool, and the seats', async () => {
     const { client, calls } = clientWithResponses([
-      ok({ entries: [entryFixture], poolCents: 2500 }),
+      ok({
+        entries: [{ ...entryFixture, balanceAfterCents: 2500 }],
+        poolCents: 2500,
+        seats: [{ id: 'mgr-majid', displayName: 'Majid', paidCents: 2500 }],
+      }),
     ]);
     const ledger = await client.getLedger('lg-1');
     expect(ledger.poolCents).toBe(2500);
     expect(ledger.entries[0]!.kind).toBe('buy-in');
+    expect(ledger.entries[0]!.balanceAfterCents).toBe(2500);
+    expect(ledger.seats).toEqual([{ id: 'mgr-majid', displayName: 'Majid', paidCents: 2500 }]);
     expect(calls[0]!.url).toBe('/api/leagues/lg-1/ledger');
   });
 });

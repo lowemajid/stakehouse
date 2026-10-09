@@ -239,6 +239,24 @@ describe('GET /api/leagues/:id/ledger', () => {
     const res = await request(world.app).get(`/api/leagues/${world.leagueId}/ledger`);
     expect(res.body.poolCents).toBe(30_00);
   });
+
+  it('pairs every entry with the balance after it, ending at the pool', async () => {
+    const { app, leagueId } = await paidLeague(2);
+    const res = await request(app).get(`/api/leagues/${leagueId}/ledger`);
+    expect(res.body.entries.map((e: { balanceAfterCents: number }) => e.balanceAfterCents)).toEqual(
+      [25_00, 50_00],
+    );
+    expect(res.body.entries[1].balanceAfterCents).toBe(res.body.poolCents);
+  });
+
+  it('serves the seats with display names and net paid, so the books can name who moved money', async () => {
+    const { app, leagueId } = await paidLeague(2);
+    const res = await request(app).get(`/api/leagues/${leagueId}/ledger`);
+    expect(res.body.seats).toStrictEqual([
+      { id: 'mgr-mgr0', displayName: 'Manager 0', paidCents: 25_00 },
+      { id: 'mgr-mgr1', displayName: 'Manager 1', paidCents: 25_00 },
+    ]);
+  });
 });
 
 describe('GET /api/players', () => {

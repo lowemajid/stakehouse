@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ApiError } from '@stakehouse/api-client';
-import { Button, Money, Panel, Table, formatCents } from '../components/ui';
+import { Button, Money, Panel, formatCents } from '../components/ui';
+import { LedgerPage } from './LedgerPage';
 import { useApi } from '../state/ApiContext';
 import { useLeagues } from '../state/LeaguesContext';
 import { useSession } from '../session/SessionContext';
@@ -18,84 +19,6 @@ type LeagueActionState =
   | { kind: 'busy' }
   | { kind: 'note'; message: string }
   | { kind: 'error'; message: string };
-
-const LEDGER_COLUMNS = [
-  { key: 'at', header: 'When' },
-  { key: 'kind', header: 'Kind' },
-  { key: 'memo', header: 'Memo' },
-  { key: 'amount', header: 'Amount', numeric: true },
-] as const;
-
-/** The league's books: every entry and the running pool, straight from the server. */
-function LedgerView({ leagueId, refetchKey }: { leagueId: string; refetchKey: number }) {
-  const api = useApi();
-  const [state, setState] = useState<
-    | { kind: 'loading' }
-    | { kind: 'ready'; ledger: Awaited<ReturnType<typeof api.getLedger>> }
-    | { kind: 'error'; message: string }
-  >({ kind: 'loading' });
-
-  useEffect(() => {
-    let alive = true;
-    api
-      .getLedger(leagueId)
-      .then((ledger) => {
-        if (alive) setState({ kind: 'ready', ledger });
-      })
-      .catch((error: unknown) => {
-        if (alive) {
-          setState({
-            kind: 'error',
-            message: error instanceof Error ? error.message : 'the books would not open',
-          });
-        }
-      });
-    return () => {
-      alive = false;
-    };
-  }, [api, leagueId, refetchKey]);
-
-  if (state.kind === 'loading') {
-    return (
-      <Panel>
-        <p className="sh-muted" aria-live="polite">
-          Opening the books…
-        </p>
-      </Panel>
-    );
-  }
-  if (state.kind === 'error') {
-    return (
-      <Panel>
-        <p className="sh-form__error">{state.message}</p>
-      </Panel>
-    );
-  }
-  if (state.ledger.entries.length === 0) {
-    return (
-      <Panel title={<h2 className="sh-league__books-title">The books</h2>}>
-        <p className="sh-muted">The books are empty — no money has moved yet.</p>
-      </Panel>
-    );
-  }
-  return (
-    <Panel title={<h2 className="sh-league__books-title">The books</h2>}>
-      <Table
-        columns={[...LEDGER_COLUMNS]}
-        rows={state.ledger.entries.map((entry) => ({
-          at: new Date(entry.at).toLocaleString(),
-          kind: entry.kind,
-          memo: entry.memo,
-          amount: formatCents(entry.amountCents),
-        }))}
-      />
-      <p className="sh-league__pool-row">
-        <span>Pool total</span>
-        <Money cents={state.ledger.poolCents} />
-      </p>
-    </Panel>
-  );
-}
 
 function presetName(reception: number): string {
   if (reception === 0.5) return 'Half-PPR';
@@ -284,8 +207,14 @@ export function LeaguePage({ leagueId, tab }: { leagueId: string; tab: LeagueTab
             </Panel>
           ) : null}
         </>
+      ) : league ? (
+        <LedgerPage league={league} refetchKey={ledgerRefetch} />
       ) : (
-        <LedgerView leagueId={leagueId} refetchKey={ledgerRefetch} />
+        <Panel>
+          <p className="sh-muted" aria-live="polite">
+            Opening the books…
+          </p>
+        </Panel>
       )}
     </div>
   );
