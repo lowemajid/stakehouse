@@ -6,7 +6,12 @@ import { roundRobinSchedule } from './schedule';
 // RED on main: the integer contract is not yet exported. The engine draws
 // stat lines internally today, but nothing names the guarantee that a drawn
 // line is integer-clean before the strict scorer validates it.
-import { COUNTER_FIELDS, integerStatLine, pointsAllowedBonusScaled, scoreLineScaled } from './scoring';
+import {
+  COUNTER_FIELDS,
+  integerStatLine,
+  pointsAllowedBonusScaled,
+  scoreLineScaled,
+} from './scoring';
 import type { Position, StatLine } from './scoring';
 import type { LeagueConfig, ScoringRules } from './leagueConfig';
 import { cents } from './money';
@@ -205,10 +210,9 @@ function expectIntegerLine(line: StatLine, where: string): void {
     expect(value >= 0, `${where}.${field} = ${value} must be non-negative`).toBe(true);
   }
   for (const [band, made] of Object.entries(line.fgMade)) {
-    expect(
-      Number.isInteger(made),
-      `${where}.fgMade.${band} = ${made} must be an integer`,
-    ).toBe(true);
+    expect(Number.isInteger(made), `${where}.fgMade.${band} = ${made} must be an integer`).toBe(
+      true,
+    );
   }
 }
 
@@ -265,7 +269,10 @@ describe('integerStatLine — the engine-side integer contract', () => {
   });
 
   it('sorts fgMade band keys so the output bytes cannot depend on input order', () => {
-    const clean = integerStatLine({ ...FLOAT_PROJECTIONS.K, fgMade: { '50-59': 0.2, '20-29': 0.8 } });
+    const clean = integerStatLine({
+      ...FLOAT_PROJECTIONS.K,
+      fgMade: { '50-59': 0.2, '20-29': 0.8 },
+    });
     expect(Object.keys(clean.fgMade)).toEqual(['20-29', '50-59']);
   });
 });

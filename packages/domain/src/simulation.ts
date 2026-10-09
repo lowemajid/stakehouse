@@ -2,7 +2,12 @@ import type { LeagueId, ManagerId } from './brand';
 import { DomainError } from './errors';
 import type { LeagueConfig } from './leagueConfig';
 import { standardNormal, weekRng } from './rng';
-import { integerStatLine, POINTS_SCALE, pointsAllowedBonusScaled, scoreLineScaled } from './scoring';
+import {
+  integerStatLine,
+  POINTS_SCALE,
+  pointsAllowedBonusScaled,
+  scoreLineScaled,
+} from './scoring';
 import type { Position, Projection, StatLine } from './scoring';
 
 // weekRng stays part of the simulation surface — the spec names it here.
