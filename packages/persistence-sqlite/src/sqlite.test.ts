@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { leagueId, managerId } from '@stakehouse/domain';
-import { ledgerEntry, leagueRecord, runRepositoryContract } from '@stakehouse/persistence';
+import { ledgerEntry, leagueRecord } from '@stakehouse/persistence';
+import { runRepositoryContract } from '@stakehouse/persistence/testing';
 import { MIGRATIONS } from './migrations';
 import { createSqliteStore } from './sqliteStore';
 

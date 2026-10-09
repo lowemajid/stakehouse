@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Stakehouse",
+    "slug": "stakehouse",
+    "version": "0.1.0",
+    "scheme": "stakehouse",
+    "platforms": ["web", "ios", "android"],
+    "plugins": ["expo-font"],
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "fonts": [
+      "./assets/fonts/fraunces-latin-400-normal.woff2",
+      "./assets/fonts/fraunces-latin-600-normal.woff2",
+      "./assets/fonts/ibm-plex-mono-latin-400-normal.woff2",
+      "./assets/fonts/ibm-plex-mono-latin-600-normal.woff2",
+      "./assets/fonts/inter-latin-400-normal.woff2",
+      "./assets/fonts/inter-latin-500-normal.woff2",
+      "./assets/fonts/inter-latin-600-normal.woff2"
+    ]
+  }
+}
