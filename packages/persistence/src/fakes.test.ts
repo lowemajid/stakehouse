@@ -1,4 +1,4 @@
-import { runRepositoryContract } from './contract';
+import { runRepositoryContract } from './repositoryContract';
 import { createFakeStore } from './fakes';
 
 // The fakes are the contract's first subject — the reference behavior every
