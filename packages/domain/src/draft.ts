@@ -124,6 +124,14 @@ function positionOf(state: DraftState, playerId: string): Position {
   return ref.position;
 }
 
+function takenIds(state: DraftState): Set<string> {
+  return new Set(state.picks.map((p) => p.playerId));
+}
+
+function positionsFor(state: DraftState, who: ManagerId): Position[] {
+  return state.picks.filter((p) => p.managerId === who).map((p) => positionOf(state, p.playerId));
+}
+
 /**
  * Slot usage, derived by greedily replaying a manager's pick sequence: each
  * pick fills an exact position slot when one is open, else FLEX (RB/WR/TE
@@ -153,8 +161,19 @@ function fitsRosterSlot(
   return FLEX_ELIGIBLE.includes(position) && used.FLEX < slots.FLEX;
 }
 
+/**
+ * The seat holding `overall`, by arithmetic snake: round 0 walks the order
+ * forward, round 1 walks it backward, alternating to the end.
+ */
+function snakeSeat(order: readonly ManagerId[], overall: number): ManagerId {
+  const seats = order.length;
+  const zero = overall - 1;
+  const round = Math.floor(zero / seats);
+  const indexInRound = zero % seats;
+  return order[round % 2 === 0 ? indexInRound : seats - 1 - indexInRound]!;
+}
+
 export function onTheClock(state: DraftState, overall: number): ManagerId {
-  const seats = state.order.length;
   const total = totalPicks(state);
   if (!Number.isInteger(overall) || overall < 1 || overall > total) {
     throw new DomainError(
@@ -162,12 +181,7 @@ export function onTheClock(state: DraftState, overall: number): ManagerId {
       `overall pick ${overall} is outside this draft's 1..${total}`,
     );
   }
-  const zero = overall - 1;
-  const round = Math.floor(zero / seats);
-  const indexInRound = zero % seats;
-  // Even rounds walk the order forward, odd rounds walk it backward.
-  const seat = state.order[round % 2 === 0 ? indexInRound : seats - 1 - indexInRound]!;
-  return seat;
+  return snakeSeat(state.order, overall);
 }
 
 function commitPick(state: DraftState, who: ManagerId, playerId: string, now: number): DraftState {
@@ -194,12 +208,8 @@ export function applyPick(state: DraftState, pick: PlayerPick, now: number): Pic
     return { ok: false, reason: 'clock-expired' };
   }
   const position = positionOf(state, pick.playerId);
-  const taken = new Set(state.picks.map((p) => p.playerId));
-  if (taken.has(pick.playerId)) return { ok: false, reason: 'player-taken' };
-  const mine = state.picks
-    .filter((p) => p.managerId === who)
-    .map((p) => positionOf(state, p.playerId));
-  if (!fitsRosterSlot(mine, state.slots, position)) {
+  if (takenIds(state).has(pick.playerId)) return { ok: false, reason: 'player-taken' };
+  if (!fitsRosterSlot(positionsFor(state, who), state.slots, position)) {
     return { ok: false, reason: 'duplicate-roster-slot' };
   }
   return { ok: true, next: commitPick(state, who, pick.playerId, now) };
@@ -212,14 +222,11 @@ export function resolveDeadline(state: DraftState, queues: QueueMap, now: number
     return state;
   }
   const who = onTheClock(state, state.picks.length + 1);
-  const taken = new Set(state.picks.map((p) => p.playerId));
-  const mine = state.picks
-    .filter((p) => p.managerId === who)
-    .map((p) => positionOf(state, p.playerId));
+  const taken = takenIds(state);
   const rosterable = (playerId: string): boolean =>
     state.board.some((ref) => ref.playerId === playerId) &&
     !taken.has(playerId) &&
-    fitsRosterSlot(mine, state.slots, positionOf(state, playerId));
+    fitsRosterSlot(positionsFor(state, who), state.slots, positionOf(state, playerId));
   // The queue's top available player; ghost, taken, and unrosterable entries
   // are skipped. An empty (or unusable) queue falls back to best-available.
   const fromQueue = (queues[who] ?? []).find(rosterable);
