@@ -277,6 +277,17 @@ describe('integerStatLine — the engine-side integer contract', () => {
   });
 });
 
+/** A PlayerCard whose projection carries the seeder's two-decimal floats. */
+function makeFloatCard(id: string, variance: number): PlayerCard {
+  return {
+    id,
+    name: id,
+    position: 'QB',
+    variance,
+    projection: structuredClone(FLOAT_PROJECTIONS.QB),
+  };
+}
+
 describe('drawStatLine under float projections', () => {
   it('emits only integer stats the strict validator accepts', () => {
     const card: PlayerCard = {
@@ -302,30 +313,14 @@ describe('drawStatLine under float projections', () => {
   });
 
   it('still rejects a non-finite or negative variance — the validator is not loosened', () => {
-    const nanVariance: PlayerCard = {
-      ...structuredClone(FLOAT_PROJECTIONS.QB),
-      id: 'p-nan-variance',
-      name: 'NaN Variance',
-      variance: Number.NaN,
-    };
+    const nanVariance = makeFloatCard('p-nan-variance', Number.NaN);
     expect(() => drawStatLine(nanVariance, 'lg_float-demo', 6)).toThrowError(DomainError);
-    const negative: PlayerCard = {
-      ...structuredClone(FLOAT_PROJECTIONS.QB),
-      id: 'p-neg-variance',
-      name: 'Negative Variance',
-      variance: -0.1,
-    };
+    const negative = makeFloatCard('p-neg-variance', -0.1);
     expect(() => drawStatLine(negative, 'lg_float-demo', 6)).toThrowError(DomainError);
   });
 
   it('replays byte-identically for the same identity-seeded draw', () => {
-    const card: PlayerCard = {
-      id: 'p-replay',
-      name: 'Replay',
-      position: 'QB',
-      variance: 0.15,
-      projection: structuredClone(FLOAT_PROJECTIONS.QB),
-    };
+    const card = makeFloatCard('p-replay', 0.15);
     const first = drawStatLine(card, 'lg_float-demo', 6);
     const second = drawStatLine(card, 'lg_float-demo', 6);
     expect(JSON.stringify(second)).toBe(JSON.stringify(first));
