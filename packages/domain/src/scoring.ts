@@ -167,7 +167,12 @@ export function projectedPoints(projection: Projection, rules: ScoringRules): nu
     ...projection,
     fgMade: Object.fromEntries(
       Object.entries(projection.fgMade).map(([band, made]) => {
-        assertCount(made, `fgMade.${band}`);
+        if (!Number.isFinite(made) || made < 0) {
+          throw new DomainError(
+            'invalid-stat-line',
+            `stat fgMade.${band} must be a non-negative number, got ${made}`,
+          );
+        }
         return [band, Math.round(made)];
       }),
     ),

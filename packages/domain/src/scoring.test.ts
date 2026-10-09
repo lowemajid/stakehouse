@@ -240,6 +240,23 @@ describe('projectedPoints', () => {
     expect(projectedPoints(projection, rules)).toBe(scoreLine(rounded, rules));
   });
 
+  it('rounds fractional field-goal means per band before scoring', () => {
+    const projection: Projection = {
+      ...zeroStatLine(),
+      fgMade: { '0-19': 0.11, '30-39': 1.6 },
+    };
+    const rounded: StatLine = {
+      ...zeroStatLine(),
+      fgMade: { '0-19': 0, '30-39': 2 },
+    };
+    expect(projectedPoints(projection, rules)).toBe(scoreLine(rounded, rules));
+  });
+
+  it('rejects negative field-goal means', () => {
+    const projection: Projection = { ...zeroStatLine(), fgMade: { '0-19': -0.5 } };
+    expectDomainError(() => projectedPoints(projection, rules), 'invalid-stat-line');
+  });
+
   it('rejects negative or non-finite projection counters', () => {
     expectDomainError(
       () => projectedPoints({ ...zeroStatLine(), rushYards: -5 }, rules),
