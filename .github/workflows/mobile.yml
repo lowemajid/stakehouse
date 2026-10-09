@@ -84,7 +84,10 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-          cache: gradle
+        # No `cache: gradle` here: the Gradle project only exists after
+        # `expo prebuild` (two steps down), so setup-java's cache glob finds
+        # no *.gradle* files and hard-errors. Caching is not worth fighting
+        # that ordering — this build runs once per merge.
       - run: npm ci
       # Best-effort: hosted runners usually ship licenses pre-accepted. If
       # cmdline-tools ever move, this no-ops rather than masking the real
