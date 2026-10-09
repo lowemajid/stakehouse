@@ -78,7 +78,13 @@ export function zeroStatLine(): StatLine {
  */
 export const POINTS_SCALE = 1000;
 
-const COUNTER_FIELDS = [
+/**
+ * Every stat field the strict scorer validates as a non-negative integer
+ * count. The validator and the integer contract below share this list, so
+ * a field added for a scoring amendment is covered by both sides at once —
+ * the check that would reject it and the normalization that cleans it.
+ */
+export const COUNTER_FIELDS = [
   'passYards',
   'passTd',
   'interceptions',
@@ -92,6 +98,31 @@ const COUNTER_FIELDS = [
   'defensiveTd',
   'pointsAllowed',
 ] as const;
+
+/**
+ * The engine-side integer contract: stat lines are counts — yards,
+ * receptions, touchdowns, kicks — so any float that reaches a stat line
+ * (projection noise, a future draw site, a line assembled under migration)
+ * is rounded per counter field and clamped at zero BEFORE the strict scorer
+ * validates it. The engine must never emit a line its own validator rejects
+ * with invalid-stat-line. Field order is the fixed COUNTER_FIELDS order and
+ * FG band keys sort, so the result replays byte-identically under the
+ * identity-seeded RNG.
+ */
+export function integerStatLine(stats: StatLine): StatLine {
+  const rounded = {} as StatLine;
+  for (const field of COUNTER_FIELDS) {
+    // `?? 0` is runtime armor, not a type statement: a line assembled by a
+    // draw site that has not learned a new counter field yet cleans to zero
+    // instead of poisoning every downstream sum with NaN.
+    rounded[field] = Math.max(0, Math.round(stats[field] ?? 0));
+  }
+  const fgMade: StatLine['fgMade'] = {};
+  for (const band of Object.keys(stats.fgMade).sort()) {
+    fgMade[band] = Math.max(0, Math.round(stats.fgMade[band] ?? 0));
+  }
+  return { ...rounded, fgMade };
+}
 
 function scaledRate(rate: number, label: string): number {
   if (!Number.isFinite(rate)) {
