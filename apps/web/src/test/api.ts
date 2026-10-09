@@ -9,6 +9,19 @@ import { OPEN_LEAGUE_VIEW, SANDBOX_LEAGUE_VIEW, SANDBOX_LEDGER_VIEW } from './fi
 export function makeFakeApi(
   overrides: Partial<Record<keyof StakehouseClient, unknown>> = {},
 ): StakehouseClient {
+  // Route tests override what they care about; these defaults only need to be
+  // structurally honest for methods no current test exercises.
+  const draftView = {
+    status: 'complete',
+    order: ['mgr-marge'],
+    picks: [],
+    pickSeconds: 30,
+    board: [],
+    clock: { overall: 0, managerId: null, deadline: null },
+    rosters: {},
+    queues: {},
+    seats: [],
+  };
   const base: Record<keyof StakehouseClient, unknown> = {
     signIn: vi.fn().mockResolvedValue({
       displayName: 'Marge Kowalski',
@@ -35,6 +48,33 @@ export function makeFakeApi(
       poolCents: 2500,
     }),
     getLedger: vi.fn().mockResolvedValue(SANDBOX_LEDGER_VIEW),
+    getDraft: vi.fn().mockResolvedValue(draftView),
+    startDraft: vi.fn().mockResolvedValue(draftView),
+    postPick: vi.fn().mockResolvedValue({
+      pick: {
+        overall: 1,
+        managerId: 'mgr-marge',
+        playerId: 'p-01',
+        at: '2026-10-02T12:00:00.000Z',
+      },
+      draft: draftView,
+    }),
+    putQueue: vi
+      .fn()
+      .mockImplementation((_leagueId: string, queue: string[]) => Promise.resolve({ queue })),
+    postAutopick: vi.fn().mockResolvedValue({
+      autopicked: {
+        overall: 1,
+        managerId: 'mgr-marge',
+        playerId: 'p-01',
+        at: '2026-10-02T12:00:00.000Z',
+      },
+      draft: draftView,
+    }),
+    postFastForward: vi.fn().mockResolvedValue({ fastForwarded: 0, draft: draftView }),
+    listPlayers: vi.fn().mockResolvedValue([]),
+    simulateNextWeek: vi.fn().mockResolvedValue({ week: 1, seasonComplete: false }),
+    openDraftStream: vi.fn().mockReturnValue({ close: vi.fn() }),
   };
   for (const [key, value] of Object.entries(overrides)) {
     base[key as keyof StakehouseClient] = value;
