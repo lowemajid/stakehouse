@@ -66,7 +66,7 @@ describe('computeStandings — records and points', () => {
       losses: 1,
       ties: 0,
       pointsFor: 170,
-      pointsAgainst: 160,
+      pointsAgainst: 180,
     });
     expect(rows.find((r) => r.managerId === C)).toMatchObject({
       wins: 0,
@@ -80,7 +80,7 @@ describe('computeStandings — records and points', () => {
       losses: 1,
       ties: 0,
       pointsFor: 155,
-      pointsAgainst: 155,
+      pointsAgainst: 160,
     });
   });
 

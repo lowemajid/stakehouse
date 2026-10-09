@@ -7,6 +7,7 @@ import { roundRobinSchedule } from './schedule';
 import type { Position, StatLine } from './scoring';
 import type { LineupSlot, PlayerCard, SimLeague, SlotPosition } from './simulation';
 import { playoffWeeks, seedBracket, seasonPayoutRecipients, simulateSeason } from './season';
+import type { BracketMatchup } from './season';
 import { computeStandings } from './standings';
 import type { StandingRow } from './standings';
 
@@ -154,10 +155,11 @@ function buildSeasonFixture(
   const starters: Record<ManagerId, readonly LineupSlot[]> = {};
   managers.forEach((mgr, i) => {
     const slots: LineupSlot[] = [];
+    let n = 0; // per-manager running counter — player ids must never collide
     for (const [slot, count] of STARTER_PLAN) {
       const position: Position = slot === 'FLEX' ? 'RB' : slot;
-      for (let n = 0; n < count; n++) {
-        const id = `p${i + 1}-${position}-${n}`;
+      for (let k = 0; k < count; k++) {
+        const id = `p${i + 1}-${position}-${n++}`;
         players[id] = {
           id,
           name: `Player ${id}`,
@@ -258,7 +260,7 @@ describe('simulateSeason — a 10-team league replays deterministically', () => 
     expect(final.week).toBe(10);
     expect(final.label).toBe('final');
     const [semiOne, semiTwo] = season.bracket;
-    const winnerOf = (matchup: typeof semiOne!) => {
+    const winnerOf = (matchup: BracketMatchup) => {
       const result = season.results.find((r) => r.matchup === matchup)!;
       return result.winner;
     };

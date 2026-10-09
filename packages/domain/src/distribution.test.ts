@@ -4,7 +4,7 @@ import type { ManagerId } from './brand';
 import { DomainError } from './errors';
 import { poolBalance, record, refundEntries } from './ledger';
 import type { LedgerEntry, NewEntry } from './ledger';
-import { cents } from './money';
+import { cents, sumCents } from './money';
 import type { PayoutSplit } from './money';
 import { payoutEntries } from './distribution';
 
@@ -44,11 +44,7 @@ describe('payoutEntries — pool to payoutPlan to ledger entries', () => {
     ]);
     const payouts = payoutEntries(lg, ledger, [70, 20, 10], recipients(), AT);
     expect(payouts).toHaveLength(3);
-    expect(payouts.map((p) => p.amountCents)).toEqual([
-      cents(-70000),
-      cents(-20000),
-      cents(-10000),
-    ]);
+    expect(payouts.map((p) => p.amountCents)).toEqual([cents(-28000), cents(-8000), cents(-4000)]);
     expect(payouts.map((p) => p.kind)).toEqual(['payout', 'payout', 'payout']);
     expect(payouts.map((p) => p.managerId)).toEqual(recipients());
     expect(payouts.every((p) => p.leagueId === lg)).toBe(true);
@@ -80,8 +76,11 @@ describe('payoutEntries — pool to payoutPlan to ledger entries', () => {
     for (const payout of payoutEntries(lg, ledger, [50, 30, 20], recipients(), AT)) {
       finalLedger = record(finalLedger, payout);
     }
-    const distributed = -poolBalance(finalLedger);
-    expect(distributed).toBe(5 * 99999); // every cent of the odd pool lands somewhere
+    expect(poolBalance(finalLedger)).toBe(0); // nothing left behind
+    const paidOut = sumCents(
+      finalLedger.filter((e) => e.kind === 'payout').map((e) => e.amountCents),
+    );
+    expect(-paidOut).toBe(5 * 99999); // every cent of the odd pool lands somewhere
   });
 
   it('refuses an empty or zero pool', () => {

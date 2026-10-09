@@ -109,8 +109,14 @@ describe('roundRobinSchedule — rejections', () => {
   ];
   for (const [story, roster, weeks] of cases) {
     it(`rejects ${story} with 'invalid-schedule'`, () => {
-      expect(() => roundRobinSchedule(roster, weeks, lg)).toThrowError(DomainError);
-      expect(() => roundRobinSchedule(roster, weeks, lg)).toThrowError(/invalid-schedule|schedule/);
+      // The machine-readable code is the contract — the HTTP layer maps it.
+      try {
+        roundRobinSchedule(roster, weeks, lg);
+        expect.fail('expected roundRobinSchedule to throw');
+      } catch (error) {
+        expect(error).toBeInstanceOf(DomainError);
+        expect((error as DomainError).code).toBe('invalid-schedule');
+      }
     });
   }
 });
