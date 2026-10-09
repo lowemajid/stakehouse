@@ -1,0 +1,68 @@
+# Mobile CI — apps/mobile (Expo / React Native)
+#
+# PRs: typecheck, lint, and unit tests scoped to apps/mobile. The root tsconfig
+# excludes apps/mobile (React Native JSX/types differ from the web build), so
+# this is the only place the mobile app gets a real typecheck gate.
+#
+# Main pushes: the same checks, plus the Android release-APK build (below) and
+# the iOS validation job (typecheck + Expo config only — see README for why).
+#
+# The iOS limitation is a locked spec decision (no macOS, no Apple account in
+# this environment): details in .github/workflows/README.md.
+
+name: Mobile CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Cancel superseded PR runs. Main-push runs are never cancelled so the APK
+# artifact for every merge always completes.
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  mobile-checks:
+    name: mobile — typecheck · lint · unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit -p apps/mobile
+      - name: Lint
+        run: npx eslint apps/mobile
+      - name: Unit tests
+        run: npx vitest run apps/mobile
+
+  ios-config:
+    # Validation only, by design: a device or App Store build needs macOS and
+    # an Apple Developer account — both out of scope (see README). This job
+    # proves the iOS target still typechecks and the Expo app config resolves.
+    name: ios — typecheck · Expo config validation (no device build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Same command as mobile-checks; jobs stay independent so an iOS failure
+      # is visible as an ios job in the checks list.
+      - name: Typecheck
+        run: npx tsc --noEmit -p apps/mobile
+      - name: Expo config validation
+        run: npx expo config --type public
+        working-directory: apps/mobile
