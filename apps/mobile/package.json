@@ -1,5 +1,23 @@
 {
   "name": "@stakehouse/mobile",
-  "version": "0.0.0",
-  "private": true
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~6.1.2",
+    "@stakehouse/api-client": "*",
+    "@stakehouse/domain": "*",
+    "@stakehouse/seeder": "*",
+    "@stakehouse/theme": "*",
+    "expo": "~54.0.0",
+    "expo-font": "~14.0.12",
+    "expo-status-bar": "~3.0.9",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-web": "^0.21.0"
+  }
 }

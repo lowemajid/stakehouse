@@ -3,6 +3,7 @@ import type { LeagueConfig } from '@stakehouse/domain';
 import { ZodError } from 'zod';
 import { describe, expect, it } from 'vitest';
 import { ApiError, createClient } from './index';
+import type { ClientOptions } from './index';
 
 /**
  * Contract tests: every method's URL, method, body, and response schema is
@@ -21,7 +22,10 @@ interface QueuedResponse {
   body: unknown;
 }
 
-function clientWithResponses(responses: QueuedResponse[]): {
+function clientWithResponses(
+  responses: QueuedResponse[],
+  options: ClientOptions = {},
+): {
   client: ReturnType<typeof createClient>;
   calls: RecordedCall[];
 } {
@@ -36,7 +40,7 @@ function clientWithResponses(responses: QueuedResponse[]): {
       headers: { 'Content-Type': 'application/json' },
     });
   }) as typeof fetch;
-  return { client: createClient({ fetchImpl }), calls };
+  return { client: createClient({ ...options, fetchImpl }), calls };
 }
 
 function ok(body: unknown): QueuedResponse {
@@ -257,12 +261,9 @@ describe('error handling', () => {
 
 describe('baseUrl', () => {
   it('prepends the configured base to every path', async () => {
-    const calls: RecordedCall[] = [];
-    const fetchImpl = (async (url: RequestInfo | URL): Promise<Response> => {
-      calls.push({ url: String(url), init: {} });
-      return ok({ leagues: [] }) as unknown as Response;
-    }) as typeof fetch;
-    const client = createClient({ baseUrl: 'http://localhost:3000', fetchImpl });
+    const { client, calls } = clientWithResponses([ok({ leagues: [] })], {
+      baseUrl: 'http://localhost:3000',
+    });
     await client.listLeagues();
     expect(calls[0]!.url).toBe('http://localhost:3000/api/leagues');
   });
