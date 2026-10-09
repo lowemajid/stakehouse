@@ -4,6 +4,7 @@ import { navigateTo, parsePath, useRoute } from '../router/route';
 import { useLeagues } from '../state/LeaguesContext';
 import { useSession } from '../session/SessionContext';
 import { CreateLeaguePage } from '../pages/CreateLeaguePage';
+import { DraftRoomPage } from '../pages/draft/DraftRoomPage';
 import { LeaguePage } from '../pages/LeaguePage';
 import { LobbyPage } from '../pages/LobbyPage';
 import { SignInPage } from '../pages/SignInPage';
@@ -99,6 +100,8 @@ function CurrentRoute() {
       return <CreateLeaguePage />;
     case 'league':
       return <LeaguePage leagueId={route.leagueId} tab={route.tab} />;
+    case 'draft':
+      return <DraftRoomPage leagueId={route.leagueId} />;
     case 'notFound':
       return <NotFoundPage />;
   }

@@ -1,0 +1,162 @@
+/*
+ * Draft room styles. Same rules as every other screen: felt surfaces from
+ * the theme tokens, brass reserved for money, motion that respects
+ * prefers-reduced-motion.
+ */
+.sh-draft__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+.sh-draft__where {
+  margin: 0;
+  opacity: 0.9;
+}
+.sh-draft__where .sh-badge {
+  margin-left: 0.6rem;
+}
+
+.sh-draft__note {
+  background: var(--sh-felt-500);
+  border-left: 3px solid var(--sh-brass);
+  padding: 0.5rem 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.sh-draft__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+@media (max-width: 56rem) {
+  .sh-draft__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sh-draft__row-actions {
+  display: inline-flex;
+  gap: 0.4rem;
+}
+
+/* Seats */
+.sh-draft__seats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.sh-draft__seat {
+  border: 1px solid var(--sh-felt-700);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+}
+.sh-draft__seat--on-clock {
+  border-color: var(--sh-felt-500);
+  background: var(--sh-felt-700);
+}
+.sh-draft__seat-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.sh-draft__seat-name {
+  font-family: var(--sh-font-display);
+  font-weight: 600;
+}
+.sh-draft__seat--thinking .sh-badge {
+  animation: sh-pulse 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sh-draft__seat--thinking .sh-badge {
+    animation: none;
+  }
+}
+.sh-draft__roster {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+}
+.sh-draft__roster-slot {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.15rem 0;
+}
+.sh-draft__roster-slot-pos {
+  font-family: var(--sh-font-mono);
+  opacity: 0.7;
+}
+
+/* Queue */
+.sh-draft__autopick {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.sh-draft__queue {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sh-draft__queue-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  border-top: 1px solid var(--sh-felt-700);
+}
+.sh-draft__queue-row:first-child {
+  border-top: none;
+}
+
+/* Recap */
+.sh-draft__recap {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.sh-draft__recap-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+.sh-draft__recap-overall {
+  font-family: var(--sh-font-mono);
+  min-width: 2.5rem;
+  text-align: right;
+  opacity: 0.7;
+}
+.sh-draft__recap-seat {
+  min-width: 10rem;
+}
+
+/* Fast-forward modal */
+.sh-draft__modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 14, 11, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+.sh-draft__modal {
+  max-width: 28rem;
+}
+.sh-draft__modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.sh-draft__back {
+  margin-top: 1.5rem;
+}
