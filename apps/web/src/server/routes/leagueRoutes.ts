@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
+import { z } from 'zod';
 import {
+  cents,
   leagueId,
   managerId,
   paidByManager,
@@ -8,11 +10,12 @@ import {
   payoutEntries,
   poolBalance,
   record,
+  refundEntries,
   seasonPayoutRecipients,
   withRunningBalance,
   ZERO_CENTS,
 } from '@stakehouse/domain';
-import type { LedgerEntry } from '@stakehouse/domain';
+import type { LedgerEntry, NewEntry } from '@stakehouse/domain';
 import type { LeagueRecord, ManagerRecord } from '@stakehouse/persistence';
 import type { ApiContext } from '../context';
 import { HttpError } from '../http';
@@ -66,6 +69,13 @@ export function leagueRoutes(ctx: ApiContext): Router {
     // 401 even when the league id is also wrong.
     const session = requireSession(req, ctx.cookieSecret);
     const league = requireLeague(ctx, req.params.id!);
+    if (ctx.ops.cancellations.get(String(league.id))) {
+      throw new HttpError(
+        409,
+        'league-cancelled',
+        'this league was voided — every buy-in went back',
+      );
+    }
     if (seatForEmail(ctx, league, session.email)) {
       throw new HttpError(409, 'already-joined', 'you already hold a seat in this league');
     }
@@ -94,6 +104,13 @@ export function leagueRoutes(ctx: ApiContext): Router {
   router.post('/leagues/:id/pay', (req, res) => {
     const session = requireSession(req, ctx.cookieSecret);
     const league = requireLeague(ctx, req.params.id!);
+    if (ctx.ops.cancellations.get(String(league.id))) {
+      throw new HttpError(
+        409,
+        'league-cancelled',
+        'this league was voided — every buy-in went back',
+      );
+    }
     const seat = requirePayingSeat(ctx, league, session);
     const entries = ctx.store.ledger.list(league.id);
     if (
@@ -177,6 +194,101 @@ export function leagueRoutes(ctx: ApiContext): Router {
     }
     ctx.store.ledger.append(league.id, created);
     res.status(201).json({ entries: created.map(publicEntry), poolCents: poolBalance(all) });
+  });
+
+  // Commissioner credit: the house adds money to the pool. Pool-level — no
+  // seat owns it, so a later cancellation leaves it in the pool rather than
+  // refunding it to anyone.
+  router.post('/leagues/:id/ledger/credit', (req, res) => {
+    const league = requireLeague(ctx, req.params.id!);
+    const session = requireSession(req, ctx.cookieSecret);
+    requireCommissioner(ctx, league, session);
+    const body = z
+      .object({
+        amountCents: z
+          .number()
+          .int()
+          .positive({ message: 'a credit must be a positive number of cents' }),
+        memo: z.string().max(200).optional(),
+      })
+      .parse(req.body);
+    const entry: NewEntry = {
+      leagueId: league.id,
+      kind: 'commissioner-credit',
+      managerId: null,
+      amountCents: cents(body.amountCents),
+      memo: body.memo ?? 'commissioner credit',
+      at: new Date(ctx.now()).toISOString(),
+    };
+    const all = record(ctx.store.ledger.list(league.id), entry);
+    const created = all[all.length - 1]!;
+    ctx.store.ledger.append(league.id, [created]);
+    res.status(201).json({ entry: publicEntry(created), poolCents: poolBalance(all) });
+  });
+
+  // Commissioner refund: one seat's remaining net contribution, back to the
+  // cent. A seat that already took a refund or a payout gets only what it
+  // still holds; nothing means a 409, not a zero-cent entry.
+  router.post('/leagues/:id/ledger/refund', (req, res) => {
+    const league = requireLeague(ctx, req.params.id!);
+    const session = requireSession(req, ctx.cookieSecret);
+    requireCommissioner(ctx, league, session);
+    const body = z.object({ managerId: z.string().min(1) }).parse(req.body);
+    const seat = ctx.store.managers
+      .list(league.id)
+      .find((manager) => String(manager.id) === body.managerId);
+    if (!seat) {
+      throw new HttpError(404, 'unknown-seat', 'no such seat in this league');
+    }
+    const entries = ctx.store.ledger.list(league.id);
+    const net =
+      paidByManager(entries).find((paid) => String(paid.managerId) === body.managerId)?.paidCents ??
+      ZERO_CENTS;
+    if (net <= 0) {
+      throw new HttpError(409, 'nothing-to-refund', 'that seat holds nothing to refund');
+    }
+    const entry: NewEntry = {
+      leagueId: league.id,
+      kind: 'refund',
+      managerId: seat.id,
+      amountCents: cents(-net),
+      memo: 'commissioner refund — net returned',
+      at: new Date(ctx.now()).toISOString(),
+    };
+    const all = record(entries, entry);
+    const created = all[all.length - 1]!;
+    ctx.store.ledger.append(league.id, [created]);
+    res.status(201).json({ entry: publicEntry(created), poolCents: poolBalance(all) });
+  });
+
+  // Cancellation: the books close, every paid seat's remaining net goes back
+  // to the cent, and the league stays readable — the void marker is the only
+  // state that changes. A second cancellation is a 409, not a double refund.
+  router.post('/leagues/:id/cancel', (req, res) => {
+    const league = requireLeague(ctx, req.params.id!);
+    const session = requireSession(req, ctx.cookieSecret);
+    requireCommissioner(ctx, league, session);
+    if (ctx.ops.cancellations.get(String(league.id))) {
+      throw new HttpError(
+        409,
+        'already-cancelled',
+        'this league is already voided — the books stay readable',
+      );
+    }
+    const entries = ctx.store.ledger.list(league.id);
+    const planned = refundEntries(league.id, entries, new Date(ctx.now()).toISOString());
+    let all = entries;
+    const created: LedgerEntry[] = [];
+    for (const entry of planned) {
+      all = record(all, entry);
+      created.push(all[all.length - 1]!);
+    }
+    ctx.store.ledger.append(league.id, created);
+    const cancelledAt = new Date(ctx.now()).toISOString();
+    ctx.ops.cancellations.set(String(league.id), cancelledAt);
+    res
+      .status(201)
+      .json({ refunds: created.map(publicEntry), poolCents: poolBalance(all), cancelledAt });
   });
 
   return router;

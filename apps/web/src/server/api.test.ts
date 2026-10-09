@@ -665,3 +665,150 @@ describe('GET /api/health', () => {
     expect(res.body.ok).toBe(true);
   });
 });
+
+describe('POST /api/leagues/:id/ledger/credit', () => {
+  it('requires the commissioner', async () => {
+    const world = await paidLeague();
+    const res = await world.agents[1]!.post(`/api/leagues/${world.leagueId}/ledger/credit`).send({
+      amountCents: 500,
+      memo: 'commissioner promo',
+    });
+    expectApiError(res, 403, 'not-commissioner');
+  });
+
+  it('records a pool-level credit exactly and grows the derived pool', async () => {
+    const world = await paidLeague();
+    const res = await world.agents[0]!.post(`/api/leagues/${world.leagueId}/ledger/credit`).send({
+      amountCents: 500,
+      memo: 'commissioner promo — season-opening credit',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.entry.kind).toBe('commissioner-credit');
+    expect(res.body.entry.managerId).toBeNull();
+    expect(res.body.entry.amountCents).toBe(500);
+    expect(res.body.entry.memo).toContain('commissioner promo');
+    expect(res.body.poolCents).toBe(10_500); // four 2500-cent buy-ins plus the credit
+  });
+
+  it('rejects zero, negative, and fractional amounts', async () => {
+    const world = await paidLeague();
+    for (const amountCents of [0, -500, 500.5]) {
+      const res = await world.agents[0]!.post(`/api/leagues/${world.leagueId}/ledger/credit`).send({
+        amountCents,
+        memo: 'no',
+      });
+      expectApiError(res, 400, 'validation-error');
+    }
+  });
+});
+
+describe('POST /api/leagues/:id/ledger/refund', () => {
+  it('requires the commissioner', async () => {
+    const world = await paidLeague();
+    const res = await world.agents[1]!.post(`/api/leagues/${world.leagueId}/ledger/refund`).send({
+      managerId: world.managerIds[0],
+    });
+    expectApiError(res, 403, 'not-commissioner');
+  });
+
+  it("returns the seat's remaining net to the cent", async () => {
+    const world = await paidLeague();
+    const res = await world.agents[0]!.post(`/api/leagues/${world.leagueId}/ledger/refund`).send({
+      managerId: world.managerIds[1],
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.entry.kind).toBe('refund');
+    expect(res.body.entry.managerId).toBe(world.managerIds[1]);
+    expect(res.body.entry.amountCents).toBe(-2500); // exactly what that seat paid
+    expect(res.body.poolCents).toBe(7500);
+  });
+
+  it("refuses a second refund — the seat's net is already zero", async () => {
+    const world = await paidLeague();
+    const seat = world.managerIds[1]!;
+    await world.agents[0]!.post(`/api/leagues/${world.leagueId}/ledger/refund`).send({
+      managerId: seat,
+    });
+    const res = await world.agents[0]!.post(`/api/leagues/${world.leagueId}/ledger/refund`).send({
+      managerId: seat,
+    });
+    expectApiError(res, 409, 'nothing-to-refund');
+  });
+
+  it('refuses an unknown seat', async () => {
+    const world = await paidLeague();
+    const res = await world.agents[0]!.post(`/api/leagues/${world.leagueId}/ledger/refund`).send({
+      managerId: 'mgr-nobody',
+    });
+    expectApiError(res, 404, 'unknown-seat');
+  });
+});
+
+describe('POST /api/leagues/:id/cancel', () => {
+  it('requires the commissioner', async () => {
+    const world = await paidLeague(3);
+    const res = await world.agents[1]!.post(`/api/leagues/${world.leagueId}/cancel`);
+    expectApiError(res, 403, 'not-commissioner');
+  });
+
+  it('refunds every paid seat to the cent and marks the league voided', async () => {
+    const world = await paidLeague(3);
+    const res = await world.agents[0]!.post(`/api/leagues/${world.leagueId}/cancel`);
+    expect(res.status).toBe(201);
+    expect(res.body.refunds).toHaveLength(3);
+    const returned = res.body.refunds.reduce(
+      (acc: number, r: { amountCents: number }) => acc + r.amountCents,
+      0,
+    );
+    expect(returned).toBe(-7500); // three 2500-cent buy-ins, back to the cent
+    expect(res.body.poolCents).toBe(0);
+    expect(typeof res.body.cancelledAt).toBe('string');
+
+    // The league view carries the cancellation — the lobby and the books can see it.
+    const view = await request(world.app).get('/api/leagues');
+    const league = view.body.leagues.find((l: { id: string }) => l.id === world.leagueId);
+    expect(league.cancelledAt).toBe(res.body.cancelledAt);
+  });
+
+  it('keeps the books readable after cancellation', async () => {
+    const world = await paidLeague(3);
+    await world.agents[0]!.post(`/api/leagues/${world.leagueId}/cancel`);
+    const res = await request(world.app).get(`/api/leagues/${world.leagueId}/ledger`);
+    expect(res.status).toBe(200);
+    expect(res.body.entries).toHaveLength(3 + 3); // three buy-ins, three refunds
+    expect(res.body.poolCents).toBe(0);
+    expect(res.body.seats.map((s: { paidCents: number }) => s.paidCents)).toStrictEqual([0, 0, 0]);
+  });
+
+  it('honours an earlier partial refund — only remaining nets go back', async () => {
+    const world = await paidLeague(3);
+    await world.agents[0]!.post(`/api/leagues/${world.leagueId}/ledger/refund`).send({
+      managerId: world.managerIds[1],
+    });
+    const res = await world.agents[0]!.post(`/api/leagues/${world.leagueId}/cancel`);
+    expect(res.status).toBe(201);
+    expect(res.body.refunds).toHaveLength(2); // the refunded seat's net is already zero
+    const returned = res.body.refunds.reduce(
+      (acc: number, r: { amountCents: number }) => acc + r.amountCents,
+      0,
+    );
+    expect(returned).toBe(-5000);
+  });
+
+  it('refuses a second cancellation', async () => {
+    const world = await paidLeague(3);
+    await world.agents[0]!.post(`/api/leagues/${world.leagueId}/cancel`);
+    const res = await world.agents[0]!.post(`/api/leagues/${world.leagueId}/cancel`);
+    expectApiError(res, 409, 'already-cancelled');
+  });
+
+  it('refuses joins and payments on a voided league', async () => {
+    const world = await paidLeague(3);
+    await world.agents[0]!.post(`/api/leagues/${world.leagueId}/cancel`);
+    const newcomer = await signIn(world.app, 9);
+    const join = await newcomer.post(`/api/leagues/${world.leagueId}/join`);
+    expectApiError(join, 409, 'league-cancelled');
+    const pay = await world.agents[0]!.post(`/api/leagues/${world.leagueId}/pay`);
+    expectApiError(pay, 409, 'league-cancelled');
+  });
+});

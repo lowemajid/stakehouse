@@ -284,3 +284,83 @@
     animation: none;
   }
 }
+
+/*
+ * The money desk — the commissioner's controls over the pot. Brass stays
+ * strictly on money: the pool figure and nothing else.
+ */
+.sh-desk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-4, 16px);
+}
+.sh-desk__pool {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.sh-desk__pool-amount {
+  font-family: var(--sh-font-mono, 'IBM Plex Mono', monospace);
+  font-size: 28px;
+  color: var(--sh-brass);
+}
+.sh-desk__split-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--sh-font-mono, 'IBM Plex Mono', monospace);
+}
+.sh-desk__split-list li {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--sh-felt-500);
+}
+.sh-desk__actions {
+  display: flex;
+  gap: 12px;
+}
+.sh-desk__credit-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+}
+.sh-desk__seats-title,
+.sh-desk__seats h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  color: var(--sh-cream-dim, #b9b3a6);
+}
+.sh-desk__seat-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sh-desk__seat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--sh-felt-700);
+}
+.sh-desk__seat-net {
+  font-family: var(--sh-font-mono, 'IBM Plex Mono', monospace);
+  margin-left: auto;
+}
+.sh-desk__danger {
+  border-top: 1px solid var(--sh-felt-700);
+  padding-top: 16px;
+}
+.sh-desk__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sh-desk__confirm p {
+  margin: 0;
+}
+.sh-desk__voided {
+  margin: 0;
+  color: var(--sh-cream);
+}

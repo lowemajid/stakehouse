@@ -114,6 +114,35 @@ const payBuyInResultSchema = z.object({
   poolCents: z.number().int(),
 });
 
+export type CreditPoolInput = { amountCents: number; memo?: string };
+export type CreditPoolResult = { entry: LedgerEntryView; poolCents: number };
+export type RefundSeatResult = { entry: LedgerEntryView; poolCents: number };
+export type CancelLeagueResult = {
+  refunds: LedgerEntryView[];
+  poolCents: number;
+  cancelledAt: string;
+};
+
+const creditPoolInputSchema = z.object({
+  amountCents: z.number().int().positive(),
+  memo: z.string().max(200).optional(),
+});
+
+const moneyDeskResultSchema = z.object({ entry: ledgerEntrySchema, poolCents: z.number().int() });
+
+const cancelLeagueResultSchema = z.object({
+  refunds: z.array(ledgerEntrySchema),
+  poolCents: z.number().int(),
+  cancelledAt: z.string(),
+});
+
+export type DistributePayoutsResult = { entries: LedgerEntryView[]; poolCents: number };
+
+const distributePayoutsResultSchema = z.object({
+  entries: z.array(ledgerEntrySchema),
+  poolCents: z.number().int(),
+});
+
 export type ApiErrorDetail = { path: string; message: string };
 
 // ---------------------------------------------------------------------------
@@ -277,6 +306,14 @@ export interface StakehouseClient {
   simulateNextWeek(leagueId: string): Promise<{ week: number; seasonComplete: boolean }>;
   /** Subscribe to the live draft stream (SSE) against the client's own origin. */
   openDraftStream(leagueId: string, handlers: DraftStreamHandlers): DraftStream;
+  /** Commissioner: credit the pool with a house-level entry. */
+  creditPool(leagueId: string, input: CreditPoolInput): Promise<CreditPoolResult>;
+  /** Commissioner: refund a seat's positive remaining net. */
+  refundSeat(leagueId: string, managerId: string): Promise<RefundSeatResult>;
+  /** Commissioner: cancel the league, refunding every paid seat's net. */
+  cancelLeague(leagueId: string): Promise<CancelLeagueResult>;
+  /** Commissioner: distribute the pool per the configured split. */
+  distributePayouts(leagueId: string): Promise<DistributePayoutsResult>;
 }
 
 export function createClient(options: ClientOptions = {}): StakehouseClient {
@@ -458,6 +495,36 @@ export function createClient(options: ClientOptions = {}): StakehouseClient {
     openDraftStream(leagueId: string, handlers: DraftStreamHandlers): DraftStream {
       // The stream rides the client's own origin — same cookies, same base.
       return openDraftStream({ baseUrl, leagueId, fetchImpl }, handlers);
+    },
+
+    async creditPool(leagueId: string, input: CreditPoolInput): Promise<CreditPoolResult> {
+      // Garbage fails locally, offline — the same discipline as createLeague.
+      const body = creditPoolInputSchema.parse(input);
+      const response = await request(`/api/leagues/${leagueId}/ledger/credit`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      return parseBody(response, moneyDeskResultSchema);
+    },
+
+    async refundSeat(leagueId: string, managerId: string): Promise<RefundSeatResult> {
+      const response = await request(`/api/leagues/${leagueId}/ledger/refund`, {
+        method: 'POST',
+        body: JSON.stringify({ managerId }),
+      });
+      return parseBody(response, moneyDeskResultSchema);
+    },
+
+    async cancelLeague(leagueId: string): Promise<CancelLeagueResult> {
+      const response = await request(`/api/leagues/${leagueId}/cancel`, { method: 'POST' });
+      return parseBody(response, cancelLeagueResultSchema);
+    },
+
+    async distributePayouts(leagueId: string): Promise<DistributePayoutsResult> {
+      const response = await request(`/api/leagues/${leagueId}/ledger/payouts/distribute`, {
+        method: 'POST',
+      });
+      return parseBody(response, distributePayoutsResultSchema);
     },
   };
 }

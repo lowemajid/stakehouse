@@ -23,10 +23,12 @@ export function makeFakeApi(
     seats: [],
   };
   const base: Record<keyof StakehouseClient, unknown> = {
-    signIn: vi.fn().mockResolvedValue({
-      displayName: 'Marge Kowalski',
-      email: 'marge@example.com',
-    }),
+    // The real session route echoes the identity it signed in — so does the double.
+    signIn: vi
+      .fn()
+      .mockImplementation((input: { displayName: string; email: string }) =>
+        Promise.resolve(input),
+      ),
     listLeagues: vi.fn().mockResolvedValue([SANDBOX_LEAGUE_VIEW, OPEN_LEAGUE_VIEW]),
     createLeague: vi.fn().mockResolvedValue(OPEN_LEAGUE_VIEW),
     joinLeague: vi.fn().mockResolvedValue({
@@ -75,6 +77,71 @@ export function makeFakeApi(
     listPlayers: vi.fn().mockResolvedValue([]),
     simulateNextWeek: vi.fn().mockResolvedValue({ week: 1, seasonComplete: false }),
     openDraftStream: vi.fn().mockReturnValue({ close: vi.fn() }),
+    creditPool: vi.fn().mockResolvedValue({
+      entry: {
+        id: 'led-credit',
+        kind: 'commissioner-credit',
+        managerId: null,
+        amountCents: 500,
+        memo: 'commissioner promo',
+        at: '2026-10-02T12:00:00.000Z',
+      },
+      poolCents: 10_500,
+    }),
+    refundSeat: vi.fn().mockResolvedValue({
+      entry: {
+        id: 'led-refund',
+        kind: 'refund',
+        managerId: 'mgr-marge',
+        amountCents: -2500,
+        memo: 'commissioner refund — net returned',
+        at: '2026-10-02T12:00:00.000Z',
+      },
+      poolCents: 7500,
+    }),
+    cancelLeague: vi.fn().mockResolvedValue({
+      refunds: [
+        {
+          id: 'led-refund',
+          kind: 'refund',
+          managerId: 'mgr-marge',
+          amountCents: -2500,
+          memo: 'cancellation refund — net returned',
+          at: '2026-10-02T12:00:00.000Z',
+        },
+      ],
+      poolCents: 0,
+      cancelledAt: '2026-10-02T12:00:00.000Z',
+    }),
+    distributePayouts: vi.fn().mockResolvedValue({
+      entries: [
+        {
+          id: 'led-payout-1',
+          kind: 'payout',
+          managerId: 'mgr-marge',
+          amountCents: -1250,
+          memo: 'season payout — 1st place',
+          at: '2026-10-02T12:00:00.000Z',
+        },
+        {
+          id: 'led-payout-2',
+          kind: 'payout',
+          managerId: 'mgr-norm',
+          amountCents: -750,
+          memo: 'season payout — 2nd place',
+          at: '2026-10-02T12:00:00.000Z',
+        },
+        {
+          id: 'led-payout-3',
+          kind: 'payout',
+          managerId: 'mgr-doris',
+          amountCents: -500,
+          memo: 'season payout — 3rd place',
+          at: '2026-10-02T12:00:00.000Z',
+        },
+      ],
+      poolCents: 0,
+    }),
   };
   for (const [key, value] of Object.entries(overrides)) {
     base[key as keyof StakehouseClient] = value;
