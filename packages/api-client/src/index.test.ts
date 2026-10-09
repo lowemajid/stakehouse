@@ -304,6 +304,7 @@ function draftViewFixture(status: 'pending' | 'live' | 'complete'): object {
       status === 'live'
         ? { overall: 2, managerId: 'mgr-ai-1', deadline: 1_791_230_430_000 }
         : { overall: null, managerId: null, deadline: null },
+    commissionerSeatId: 'mgr-marge',
     rosters: {
       'mgr-marge': [{ playerId: 'p-0', position: 'QB', slot: 'QB' }],
       'mgr-ai-1': [],
@@ -332,6 +333,7 @@ describe('draft operations', () => {
     expect(calls[0]!.url).toBe('/api/leagues/lg-1/draft');
     expect(calls[0]!.init.method).toBe('GET');
     expect(result.you).toBe('mgr-marge');
+    expect(result.commissionerSeatId).toBe('mgr-marge');
     expect(result.clock.deadline).toBe(1_791_230_430_000);
     expect(result.managers['mgr-ai-1']).toEqual({
       displayName: 'Chester Royales',

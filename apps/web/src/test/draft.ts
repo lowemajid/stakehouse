@@ -22,6 +22,7 @@ export function draftViewFixture(overrides: Partial<DraftView> = {}): DraftView 
       { playerId: 'p-4', position: 'TE', name: 'Marcus Idowu', projectedPoints: 158.2 },
     ],
     clock: { overall: 1, managerId: seats[0], deadline: null },
+    commissionerSeatId: seats[0],
     rosters: Object.fromEntries(seats.map((id) => [id, []])),
     queues: Object.fromEntries(seats.map((id) => [id, { queue: [], autopick: true }])),
     managers: {

@@ -9,6 +9,7 @@ import type {
 import type { LeagueRecord } from '@stakehouse/persistence';
 import type { StakehouseStore } from '@stakehouse/persistence';
 import type { LeagueOpsStore } from './opsStore';
+import { managerIdForEmail } from './sessions';
 
 /**
  * The draft view: everything a board needs, derived from stored state on every
@@ -44,6 +45,10 @@ export interface DraftView {
   pickSeconds: number;
   board: BoardEntry[];
   clock: { overall: number | null; managerId: string | null; deadline: number | null };
+  /** The commissioner's seat, so the room gates its two commissioner
+   * actions (fast-forward, start week 1) without a second lookup. Null when
+   * no commissioner is registered (or before the store boots the demo one). */
+  commissionerSeatId: string | null;
   rosters: Record<string, RosterSlot[]>;
   queues: Record<string, { queue: string[]; autopick: boolean }>;
   /** Seat identity for the room — who is on the clock, and whether they think. */
@@ -190,6 +195,14 @@ export function buildDraftView(
         }
       : { overall: null, managerId: null, deadline: null };
 
+  // Seat ids derive deterministically from emails (the same rule sessions.ts
+  // uses to find a caller's seat), so the commissioner's email maps to their
+  // seat id directly. A commissioner without a seat in this league yields an
+  // id that matches nobody — exactly the gate the room needs.
+  const commissionerEmail = ops.commissioners.get(String(league.id)) ?? null;
+  const commissionerSeatId =
+    commissionerEmail !== null ? managerIdForEmail(commissionerEmail) : null;
+
   return {
     status: state?.status ?? 'pending',
     order: order.map(String),
@@ -197,6 +210,7 @@ export function buildDraftView(
     pickSeconds: state?.pickSeconds ?? DEFAULT_PICK_SECONDS,
     board,
     clock,
+    commissionerSeatId,
     rosters,
     queues,
     seats: managers.map((manager) => ({

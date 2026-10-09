@@ -6,10 +6,13 @@ import { useApi } from '../../state/ApiContext';
 import { useLeagues } from '../../state/LeaguesContext';
 import { ShellLink } from '../../shell/AppShell';
 import { DraftBoard } from './DraftBoard';
+import { FastForward } from './FastForward';
 import { QueuePanel } from './QueuePanel';
+import { RecapBoard } from './RecapBoard';
 import { SeatRosters } from './SeatRosters';
 import { pickInRound, roundOf, secondsRemaining, shouldAutopick } from './draftClock';
 import { subscribeDraft } from './draftStream';
+import { navigateTo } from '../../router/route';
 import './draft.css';
 
 type RoomState =
@@ -241,6 +244,23 @@ export function DraftRoomPage({ leagueId }: { leagueId: string }) {
     }
   }
 
+  /** Commissioner fast-forward: the engine resolves every remaining pick.
+   * ApiError propagates — the confirm modal shows the server's reason. */
+  async function fastForward(): Promise<void> {
+    const result = await api.draftFastForward(leagueId);
+    applyView(result.draft);
+    setToast({
+      id: Date.now(),
+      message: `${result.fastForwarded} picks resolved — the draft is complete.`,
+    });
+  }
+
+  /** The handoff: week 1 belongs to the season engine now. */
+  async function startWeek1(): Promise<void> {
+    await api.simulateNextWeek(leagueId);
+    navigateTo({ name: 'league', leagueId, tab: 'overview' });
+  }
+
   const league =
     leagues.state === 'ready' ? leagues.value.find((l) => l.id === leagueId) : undefined;
 
@@ -269,6 +289,7 @@ export function DraftRoomPage({ leagueId }: { leagueId: string }) {
   const { draft, you } = state;
   const seats = draft.order.length;
   const onClockOverall = draft.clock.overall;
+  const isCommissioner = you !== null && draft.commissionerSeatId === you;
   const myTurn = draft.status === 'live' && you !== null && draft.clock.managerId === you;
   const onClockName =
     draft.clock.managerId !== null
@@ -295,6 +316,11 @@ export function DraftRoomPage({ leagueId }: { leagueId: string }) {
               />
             ) : null}
           </p>
+        ) : null}
+        {draft.status === 'live' && isCommissioner ? (
+          <div className="sh-draft__commissioner">
+            <FastForward onConfirm={() => fastForward()} />
+          </div>
         ) : null}
       </div>
 
@@ -350,11 +376,7 @@ export function DraftRoomPage({ leagueId }: { leagueId: string }) {
       ) : null}
 
       {draft.status === 'complete' ? (
-        <Panel title="Draft complete">
-          <p className="sh-muted">
-            {draft.picks.length} picks on the books. The recap and week 1 live here next.
-          </p>
-        </Panel>
+        <RecapBoard draft={draft} isCommissioner={isCommissioner} onStartWeek={startWeek1} />
       ) : null}
 
       <p className="sh-draft__back">

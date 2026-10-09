@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import { draftedLeague, expectApiError, paidLeague, signIn, T0 } from './testSupport';
+import { draftedLeague, expectApiError, paidLeague, signIn, T0, USER } from './testSupport';
+import { managerIdForEmail } from './sessions';
 
 /**
  * The draft route contract: snake integrity, guarded transitions, the
@@ -61,6 +62,14 @@ describe('GET /api/leagues/:id/draft', () => {
       Object.fromEntries(world.managerIds.map((id) => [id, { queue: [], autopick: true }])),
     );
     expect(draft.clock.deadline).toBeNull(); // draft complete — no clock running
+  });
+
+  it('names the commissioner seat so the room gates commissioner actions', async () => {
+    const world = await paidLeague();
+    const res = await request(world.app).get(`/api/leagues/${world.leagueId}/draft`);
+    expect(res.status).toBe(200);
+    // The league's commissioner is agent 0 (the creator).
+    expect(res.body.draft.commissionerSeatId).toBe(managerIdForEmail(USER(0).email));
   });
 });
 

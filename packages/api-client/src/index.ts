@@ -172,6 +172,9 @@ export type DraftView = {
   /** The whole universe by id, so a pick keeps its name after leaving the
    * live board — rosters, the picks feed, and the recap all resolve here. */
   players: Record<string, { name: string; position: Position; projectedPoints: number }>;
+  /** The commissioner's seat, so the room gates its two commissioner
+   * actions (fast-forward, start week 1) without a second lookup. */
+  commissionerSeatId: string | null;
   /** The caller's own seat, null when signed out or seatless. */
   you: string | null;
 };
@@ -184,6 +187,9 @@ export const draftViewSchema = z.object({
   board: z.array(boardEntrySchema),
   clock: draftClockSchema,
   rosters: z.record(z.string(), z.array(rosterSlotSchema)),
+  /** The commissioner's seat, so the room gates its two commissioner
+   * actions (fast-forward, start week 1) without a second lookup. */
+  commissionerSeatId: z.string().nullable(),
   queues: z.record(z.string(), z.object({ queue: z.array(z.string()), autopick: z.boolean() })),
   seats: z.array(draftSeatSchema),
   managers: z.record(z.string(), z.object({ displayName: z.string(), isAi: z.boolean() })),

@@ -209,3 +209,91 @@ describe('DraftRoomPage — the live stream', () => {
     expect(api.draftAutopick).not.toHaveBeenCalled();
   });
 });
+
+describe('DraftRoomPage — fast-forward and recap', () => {
+  function completeView() {
+    return draftViewFixture({
+      status: 'complete',
+      picks: [
+        { overall: 1, managerId: DRAFT_SEAT_IDS[0], playerId: 'p-1', at: '2026-10-09T12:01:00Z' },
+        { overall: 2, managerId: DRAFT_SEAT_IDS[1], playerId: 'p-2', at: '2026-10-09T12:01:30Z' },
+      ],
+      board: [],
+      clock: { overall: null, managerId: null, deadline: null },
+      rosters: {
+        [DRAFT_SEAT_IDS[0]]: [{ playerId: 'p-1', position: 'QB', slot: 'QB' }],
+        [DRAFT_SEAT_IDS[1]]: [{ playerId: 'p-2', position: 'RB', slot: 'RB' }],
+        [DRAFT_SEAT_IDS[2]]: [],
+      },
+    });
+  }
+
+  it('the commissioner gets a confirm before fast-forwarding the rest of the draft', async () => {
+    const user = userEvent.setup();
+    const api = makeFakeApi({
+      draftFastForward: vi.fn().mockResolvedValue({ fastForwarded: 34, draft: completeView() }),
+    });
+    renderDraft('/leagues/lg-sandbox/draft', api);
+    await user.click(await screen.findByRole('button', { name: /fast-forward/i }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    expect(dialog.textContent).toMatch(/no take-backs/i);
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(api.draftFastForward).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: /fast-forward/i }));
+    await user.click(screen.getByRole('button', { name: /resolve every pick/i }));
+    await waitFor(() => expect(api.draftFastForward).toHaveBeenCalledWith('lg-sandbox'));
+    expect(await screen.findByRole('table', { name: /draft recap/i })).toBeInTheDocument();
+  });
+
+  it('a non-commissioner sees no fast-forward control', async () => {
+    const api = makeFakeApi({
+      getDraft: vi.fn().mockResolvedValue({
+        draft: draftViewFixture({ commissionerSeatId: DRAFT_SEAT_IDS[1] }),
+        you: 'mgr-marge',
+      }),
+    });
+    renderDraft('/leagues/lg-sandbox/draft', api);
+    expect(await screen.findByRole('button', { name: /draft dov amado/i })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: /fast-forward/i })).not.toBeInTheDocument();
+  });
+
+  it('the recap lists every pick in snake order with seat and player names', async () => {
+    const api = makeFakeApi({
+      getDraft: vi.fn().mockResolvedValue({ draft: completeView(), you: 'mgr-marge' }),
+    });
+    renderDraft('/leagues/lg-sandbox/draft', api);
+    const recap = await screen.findByRole('table', { name: /draft recap/i });
+    const rows = recap.querySelectorAll('tbody tr');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.textContent).toContain('Marge Kowalski');
+    expect(rows[0]!.textContent).toContain('Dov Amado');
+    expect(rows[1]!.textContent).toContain('Chester Royales');
+    expect(rows[1]!.textContent).toContain('Silas Brummell');
+  });
+
+  it('the commissioner hands the league to the season engine', async () => {
+    const user = userEvent.setup();
+    const api = makeFakeApi({
+      getDraft: vi.fn().mockResolvedValue({ draft: completeView(), you: 'mgr-marge' }),
+    });
+    renderDraft('/leagues/lg-sandbox/draft', api);
+    await user.click(await screen.findByRole('button', { name: /start week 1/i }));
+    await waitFor(() => expect(api.simulateNextWeek).toHaveBeenCalledWith('lg-sandbox'));
+    await waitFor(() => expect(window.location.pathname).toBe(`/leagues/${'lg-sandbox'}`));
+  });
+
+  it('a non-commissioner waits for the week-1 handoff', async () => {
+    const api = makeFakeApi({
+      getDraft: vi.fn().mockResolvedValue({
+        draft: draftViewFixture({ status: 'complete', commissionerSeatId: DRAFT_SEAT_IDS[1] }),
+        you: 'mgr-marge',
+      }),
+      draftFastForward: vi.fn(),
+    });
+    renderDraft('/leagues/lg-sandbox/draft', api);
+    expect(await screen.findByText(/waiting for the commissioner/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /start week 1/i })).not.toBeInTheDocument();
+  });
+});
