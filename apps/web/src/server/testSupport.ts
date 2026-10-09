@@ -98,11 +98,13 @@ export function seedPlayers(store: StakehouseStore): void {
   let index = 0;
   for (const [position, count] of bands) {
     for (let n = 0; n < count; n++) {
+      // Float per-game means, mirroring the real seeder — the board must
+      // score projections without treating them as drawn stat lines.
       const projection = zeroStatLine();
-      projection.passYards = 220;
-      projection.passTd = 2;
-      projection.rushYards = 18;
-      projection.receptions = 3;
+      projection.passYards = 220.79;
+      projection.passTd = 1.26;
+      projection.rushYards = 5.77;
+      projection.receptions = 3.2;
       store.players.upsert({
         id: `p-${index}`,
         name: `Player ${index}`,

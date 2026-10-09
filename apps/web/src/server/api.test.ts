@@ -288,7 +288,7 @@ describe('GET /api/players', () => {
       id: 'p-0',
       name: 'Player 0',
       position: 'QB',
-      projection: expect.objectContaining({ passYards: 220 }),
+      projection: expect.objectContaining({ passYards: 220.79 }),
       variance: 0.12,
     });
   });

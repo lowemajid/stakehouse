@@ -1,5 +1,5 @@
 import { leagueConfigSchema } from '@stakehouse/domain';
-import type { LeagueConfig } from '@stakehouse/domain';
+import type { LeagueConfig, Position } from '@stakehouse/domain';
 import { z } from 'zod';
 
 /**
@@ -89,6 +89,105 @@ const payBuyInResultSchema = z.object({
 
 export type ApiErrorDetail = { path: string; message: string };
 
+// ---------------------------------------------------------------------------
+// Draft contract — every shape mirrors apps/web/src/server/draftView.ts and
+// the draft routes, so one parser serves the board, the stream, and the
+// mutation responses.
+// ---------------------------------------------------------------------------
+
+export type DraftStatus = 'pending' | 'live' | 'complete';
+
+export type DraftPickView = {
+  overall: number;
+  managerId: string;
+  playerId: string;
+  at: string;
+};
+
+const draftPickSchema = z.object({
+  overall: z.number().int(),
+  managerId: z.string(),
+  playerId: z.string(),
+  at: z.string(),
+});
+
+/** A seat in the draft room — names the seat that is deciding, per spec. */
+export type DraftSeatView = { id: string; displayName: string; isAi: boolean };
+
+const draftSeatSchema = z.object({
+  id: z.string(),
+  displayName: z.string(),
+  isAi: z.boolean(),
+});
+
+export type BoardEntryView = {
+  playerId: string;
+  position: Position;
+  name: string;
+  projectedPoints: number;
+};
+
+const positionSchema = z.enum(['QB', 'RB', 'WR', 'TE', 'K', 'DEF']);
+
+const boardEntrySchema = z.object({
+  playerId: z.string(),
+  position: positionSchema,
+  name: z.string(),
+  projectedPoints: z.number(),
+});
+
+export type RosterSlotView = { playerId: string; position: Position; slot: string };
+
+const rosterSlotSchema = z.object({
+  playerId: z.string(),
+  position: positionSchema,
+  slot: z.string(),
+});
+
+export type DraftClockView = {
+  overall: number | null;
+  managerId: string | null;
+  deadline: number | null;
+};
+
+const draftClockSchema = z.object({
+  overall: z.number().int().nullable(),
+  managerId: z.string().nullable(),
+  deadline: z.number().nullable(),
+});
+
+export type DraftView = {
+  status: DraftStatus;
+  order: string[];
+  picks: DraftPickView[];
+  pickSeconds: number;
+  board: BoardEntryView[];
+  clock: DraftClockView;
+  rosters: Record<string, RosterSlotView[]>;
+  queues: Record<string, { queue: string[]; autopick: boolean }>;
+  seats: DraftSeatView[];
+};
+
+export const draftViewSchema = z.object({
+  status: z.enum(['pending', 'live', 'complete']),
+  order: z.array(z.string()),
+  picks: z.array(draftPickSchema),
+  pickSeconds: z.number().int(),
+  board: z.array(boardEntrySchema),
+  clock: draftClockSchema,
+  rosters: z.record(z.string(), z.array(rosterSlotSchema)),
+  queues: z.record(z.string(), z.object({ queue: z.array(z.string()), autopick: z.boolean() })),
+  seats: z.array(draftSeatSchema),
+});
+
+export type PlayerCardView = { id: string; name: string; position: Position };
+
+const playerCardViewSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  position: positionSchema,
+});
+
 const errorEnvelopeSchema = z.object({
   error: z.object({
     code: z.string(),
@@ -131,6 +230,24 @@ export interface StakehouseClient {
   joinLeague(leagueId: string): Promise<ManagerView>;
   payBuyIn(leagueId: string): Promise<PayBuyInResult>;
   getLedger(leagueId: string): Promise<{ entries: LedgerEntryView[]; poolCents: number }>;
+  /** The live draft board: picks, rosters, queues, clock, and seats. */
+  getDraft(leagueId: string): Promise<DraftView>;
+  /** Commissioner: start a full, paid league's draft. */
+  startDraft(leagueId: string): Promise<DraftView>;
+  /** The guarded on-the-clock pick; rejects with the server's reason. */
+  postPick(leagueId: string, playerId: string): Promise<{ pick: DraftPickView; draft: DraftView }>;
+  /** Persist my queue order (seat-scoped by the session server-side). */
+  putQueue(leagueId: string, queue: string[]): Promise<{ queue: string[] }>;
+  /** Resolve an expired clock now — queue top else best available. */
+  postAutopick(leagueId: string): Promise<{ autopicked: DraftPickView; draft: DraftView }>;
+  /** Commissioner: cascade every remaining pick to the recap. */
+  postFastForward(leagueId: string): Promise<{ fastForwarded: number; draft: DraftView }>;
+  /** The player universe — names for boards, queues, and recaps. */
+  listPlayers(params?: { q?: string; pos?: string }): Promise<PlayerCardView[]>;
+  /** Commissioner: simulate the next regular-season week. */
+  simulateNextWeek(leagueId: string): Promise<{ week: number; seasonComplete: boolean }>;
+  /** Subscribe to the live draft stream (SSE) against the client's own origin. */
+  openDraftStream(leagueId: string, handlers: DraftStreamHandlers): DraftStream;
 }
 
 export function createClient(options: ClientOptions = {}): StakehouseClient {
@@ -234,5 +351,185 @@ export function createClient(options: ClientOptions = {}): StakehouseClient {
         z.object({ entries: z.array(ledgerEntrySchema), poolCents: z.number().int() }),
       );
     },
+
+    async getDraft(leagueId: string): Promise<DraftView> {
+      const response = await request(`/api/leagues/${leagueId}/draft`, { method: 'GET' });
+      const parsed = await parseBody(response, z.object({ draft: draftViewSchema }));
+      return parsed.draft;
+    },
+
+    async startDraft(leagueId: string): Promise<DraftView> {
+      const response = await request(`/api/leagues/${leagueId}/draft/start`, { method: 'POST' });
+      const parsed = await parseBody(response, z.object({ draft: draftViewSchema }));
+      return parsed.draft;
+    },
+
+    async postPick(
+      leagueId: string,
+      playerId: string,
+    ): Promise<{ pick: DraftPickView; draft: DraftView }> {
+      const response = await request(`/api/leagues/${leagueId}/draft/pick`, {
+        method: 'POST',
+        body: JSON.stringify({ playerId }),
+      });
+      return parseBody(response, z.object({ pick: draftPickSchema, draft: draftViewSchema }));
+    },
+
+    async putQueue(leagueId: string, queue: string[]): Promise<{ queue: string[] }> {
+      const response = await request(`/api/leagues/${leagueId}/draft/queue`, {
+        method: 'PUT',
+        body: JSON.stringify({ queue }),
+      });
+      return parseBody(response, z.object({ queue: z.array(z.string()) }));
+    },
+
+    async postAutopick(leagueId: string): Promise<{ autopicked: DraftPickView; draft: DraftView }> {
+      const response = await request(`/api/leagues/${leagueId}/draft/autopick`, {
+        method: 'POST',
+      });
+      return parseBody(response, z.object({ autopicked: draftPickSchema, draft: draftViewSchema }));
+    },
+
+    async postFastForward(leagueId: string): Promise<{ fastForwarded: number; draft: DraftView }> {
+      const response = await request(`/api/leagues/${leagueId}/draft/fast-forward`, {
+        method: 'POST',
+      });
+      return parseBody(
+        response,
+        z.object({ fastForwarded: z.number().int(), draft: draftViewSchema }),
+      );
+    },
+
+    async listPlayers(params?: { q?: string; pos?: string }): Promise<PlayerCardView[]> {
+      const search = new URLSearchParams();
+      if (params?.q) search.set('q', params.q);
+      if (params?.pos) search.set('pos', params.pos);
+      const suffix = search.toString();
+      const response = await request(`/api/players${suffix ? `?${suffix}` : ''}`, {
+        method: 'GET',
+      });
+      const parsed = await parseBody(
+        response,
+        z.object({ players: z.array(playerCardViewSchema), total: z.number().int() }),
+      );
+      return parsed.players;
+    },
+
+    async simulateNextWeek(leagueId: string): Promise<{ week: number; seasonComplete: boolean }> {
+      const response = await request(`/api/leagues/${leagueId}/simulate`, { method: 'POST' });
+      return parseBody(response, z.object({ week: z.number().int(), seasonComplete: z.boolean() }));
+    },
+
+    openDraftStream(leagueId: string, handlers: DraftStreamHandlers): DraftStream {
+      // The stream rides the client's own origin — same cookies, same base.
+      return openDraftStream({ baseUrl, leagueId, fetchImpl }, handlers);
+    },
   };
+}
+
+// ---------------------------------------------------------------------------
+// The live draft stream. The server's SSE endpoint carries the same payload
+// as GET /draft (`draft` events) plus clock heartbeats (`clock` events) —
+// one parser serves both transports. Read over fetch so the session cookie
+// rides along and any transport failure surfaces as onDown, where the
+// caller's polling fallback takes over.
+// ---------------------------------------------------------------------------
+
+export interface DraftStreamHandlers {
+  onDraft(draft: DraftView): void;
+  onClock(atMs: number): void;
+  /** The stream is down — contract/transport error, or a clean server close. */
+  onDown(reason: 'error' | 'ended'): void;
+}
+
+export interface DraftStreamOptions {
+  baseUrl?: string;
+  leagueId: string;
+  fetchImpl?: typeof fetch;
+}
+
+export interface DraftStream {
+  close(): void;
+}
+
+export function openDraftStream(
+  options: DraftStreamOptions,
+  handlers: DraftStreamHandlers,
+): DraftStream {
+  const controller = new AbortController();
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const baseUrl = options.baseUrl ?? '';
+
+  void (async () => {
+    try {
+      const response = await fetchImpl(`${baseUrl}/api/leagues/${options.leagueId}/draft/stream`, {
+        credentials: 'include',
+        headers: { Accept: 'text/event-stream' },
+        signal: controller.signal,
+      });
+      if (!response.ok || response.body === null) {
+        handlers.onDown('error');
+        return;
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let boundary = buffer.indexOf('\n\n');
+        while (boundary !== -1) {
+          const accepted = handleStreamBlock(buffer.slice(0, boundary), handlers);
+          buffer = buffer.slice(boundary + 2);
+          if (!accepted) {
+            // Contract break — stop trusting this stream; the caller falls
+            // back to polling. Exactly one onDown per stream.
+            handlers.onDown('error');
+            return;
+          }
+          boundary = buffer.indexOf('\n\n');
+        }
+      }
+      handlers.onDown('ended');
+    } catch {
+      // An abort is the caller's own close(); anything else is transport failure.
+      if (!controller.signal.aborted) handlers.onDown('error');
+    }
+  })();
+
+  return { close: () => controller.abort() };
+}
+
+/** Returns false when the block breaks the contract and the stream must die. */
+function handleStreamBlock(block: string, handlers: DraftStreamHandlers): boolean {
+  let event = 'message';
+  let data = '';
+  for (const line of block.split('\n')) {
+    if (line.startsWith('event:')) event = line.slice(6).trim();
+    else if (line.startsWith('data:')) data += line.slice(5).trim();
+  }
+  if (event === 'draft') {
+    try {
+      const parsed = draftViewSchema.safeParse((JSON.parse(data) as { draft: unknown }).draft);
+      // A malformed payload is a contract break: say so, then let the
+      // fallback take over — never render an unvalidated view.
+      if (parsed.success) {
+        handlers.onDraft(parsed.data);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+  if (event === 'clock') {
+    try {
+      const at = (JSON.parse(data) as { at?: unknown }).at;
+      if (typeof at === 'number') handlers.onClock(at);
+    } catch {
+      // A heartbeat that cannot be parsed carries nothing actionable.
+    }
+  }
+  return true;
 }

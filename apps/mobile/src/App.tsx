@@ -11,6 +11,7 @@ import { SignInScreen } from './screens/SignInScreen';
 import { LeagueListScreen } from './screens/LeagueListScreen';
 import { CreateLeagueScreen } from './screens/CreateLeagueScreen';
 import { LeagueDetailScreen } from './screens/LeagueDetailScreen';
+import { DraftRoomScreen } from './screens/DraftRoomScreen';
 
 export default function App(): ReactElement {
   // The three house faces load locally — the app renders with zero network
@@ -73,6 +74,18 @@ function InnerApp({
         />
       );
     case 'leagueDetail':
-      return <LeagueDetailScreen leagueId={route.leagueId} />;
+      return (
+        <LeagueDetailScreen
+          leagueId={route.leagueId}
+          onOpenDraft={(leagueId) => dispatch({ type: 'openDraftRoom', leagueId })}
+        />
+      );
+    case 'draftRoom':
+      return (
+        <DraftRoomScreen
+          leagueId={route.leagueId}
+          onBack={() => dispatch({ type: 'openLeague', leagueId: route.leagueId })}
+        />
+      );
   }
 }

@@ -3,7 +3,7 @@ import { DomainError } from './errors';
 import type { LeagueConfig } from './leagueConfig';
 import { standardNormal, weekRng } from './rng';
 import { POINTS_SCALE, pointsAllowedBonusScaled, scoreLineScaled } from './scoring';
-import type { Position, StatLine } from './scoring';
+import type { Position, Projection, StatLine } from './scoring';
 
 // weekRng stays part of the simulation surface — the spec names it here.
 export { weekRng };
@@ -16,8 +16,8 @@ export interface PlayerCard {
   id: string;
   name: string;
   position: Position;
-  /** Expected counting stats for one week — the mean the draw starts from. */
-  projection: StatLine;
+  /** Expected counting stats for one week — the float means the draw starts from. */
+  projection: Projection;
   /** Relative spread of the draw (0 repeats the projection exactly). */
   variance: number;
 }

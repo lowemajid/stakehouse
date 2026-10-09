@@ -1,4 +1,4 @@
-import { onTheClock, scoreLine } from '@stakehouse/domain';
+import { onTheClock, projectedPoints } from '@stakehouse/domain';
 import type {
   DraftState,
   PlayerCard,
@@ -31,6 +31,12 @@ export interface RosterSlot {
   slot: string;
 }
 
+export interface DraftSeat {
+  id: string;
+  displayName: string;
+  isAi: boolean;
+}
+
 export interface DraftView {
   status: DraftState['status'];
   order: string[];
@@ -40,6 +46,8 @@ export interface DraftView {
   clock: { overall: number | null; managerId: string | null; deadline: number | null };
   rosters: Record<string, RosterSlot[]>;
   queues: Record<string, { queue: string[]; autopick: boolean }>;
+  /** Seat identity for the room — who is on the clock, and whether they think. */
+  seats: DraftSeat[];
 }
 
 const FLEX_ELIGIBLE = new Set<Position>(['RB', 'WR', 'TE']);
@@ -52,7 +60,7 @@ export function rankedBoard(players: readonly PlayerCard[], scoring: ScoringRule
       playerId: player.id,
       position: player.position,
       name: player.name,
-      projectedPoints: scoreLine(player.projection, scoring),
+      projectedPoints: projectedPoints(player.projection, scoring),
     }))
     .sort(
       (a, b) =>
@@ -171,5 +179,10 @@ export function buildDraftView(
     clock,
     rosters,
     queues,
+    seats: managers.map((manager) => ({
+      id: String(manager.id),
+      displayName: manager.displayName,
+      isAi: manager.isAi,
+    })),
   };
 }
