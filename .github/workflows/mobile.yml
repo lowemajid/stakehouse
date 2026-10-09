@@ -1,0 +1,112 @@
+# Mobile CI — apps/mobile (Expo / React Native)
+#
+# PRs: typecheck, lint, and unit tests scoped to apps/mobile. The root tsconfig
+# excludes apps/mobile (React Native JSX/types differ from the web build), so
+# this is the only place the mobile app gets a real typecheck gate.
+#
+# Main pushes: the same checks, plus the Android release-APK build (below) and
+# the iOS validation job (typecheck + Expo config only — see README for why).
+#
+# The iOS limitation is a locked spec decision (no macOS, no Apple account in
+# this environment): details in .github/workflows/README.md.
+
+name: Mobile CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Cancel superseded PR runs. Main-push runs are never cancelled so the APK
+# artifact for every merge always completes.
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  mobile-checks:
+    name: mobile — typecheck · lint · unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit -p apps/mobile
+      - name: Lint
+        run: npx eslint apps/mobile
+      - name: Unit tests
+        run: npx vitest run apps/mobile
+
+  ios-config:
+    # Validation only, by design: a device or App Store build needs macOS and
+    # an Apple Developer account — both out of scope (see README). This job
+    # proves the iOS target still typechecks and the Expo app config resolves.
+    name: ios — typecheck · Expo config validation (no device build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Same command as mobile-checks; jobs stay independent so an iOS failure
+      # is visible as an ios job in the checks list.
+      - name: Typecheck
+        run: npx tsc --noEmit -p apps/mobile
+      - name: Expo config validation
+        run: npx expo config --type public
+        working-directory: apps/mobile
+
+  android-apk:
+    # Merges only: the artifact left behind by each merge run is the
+    # deliverable, and PRs skip the long Gradle build entirely.
+    name: android — debug-signed release APK artifact
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+      - run: npm ci
+      # Best-effort: hosted runners usually ship licenses pre-accepted. If
+      # cmdline-tools ever move, this no-ops rather than masking the real
+      # gate — assembleRelease below fails loudly on any SDK problem.
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+      - name: Expo prebuild (android)
+        run: npx expo prebuild -p android --no-install
+        working-directory: apps/mobile
+      - name: Gradle assembleRelease (debug-signed)
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+        working-directory: apps/mobile/android
+      - name: Smoke-assert the APK exists
+        run: |
+          APK=apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          ls -lh "$APK"
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stakehouse-android-debug-apk
+          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
