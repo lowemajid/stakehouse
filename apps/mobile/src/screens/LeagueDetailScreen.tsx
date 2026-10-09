@@ -19,7 +19,13 @@ type LoadState =
  * and says so out loud; the pool figure is derived from ledger evidence, and
  * the pay response's poolCents updates it live.
  */
-export function LeagueDetailScreen({ leagueId }: { leagueId: string }): ReactElement {
+export function LeagueDetailScreen({
+  leagueId,
+  onOpenDraft,
+}: {
+  leagueId: string;
+  onOpenDraft(leagueId: string): void;
+}): ReactElement {
   const { client, user } = useApi();
   const [state, setState] = useState<LoadState>({ phase: 'loading' });
   const [locallyJoined, setLocallyJoined] = useState(false);
@@ -120,6 +126,11 @@ export function LeagueDetailScreen({ leagueId }: { leagueId: string }): ReactEle
           <Text style={styles.lede}>
             {league.seatsFilled}/{league.config.size} seats · {league.config.size}-seat house rules
           </Text>
+          <Button
+            label="Enter the draft room"
+            onPress={() => onOpenDraft(league.id)}
+            variant="quiet"
+          />
         </View>
 
         {seat === 'notJoined' ? (

@@ -3,11 +3,15 @@
  * an explicit reducer, so every transition is unit-testable.
  */
 export type Route =
-  { name: 'leagues' } | { name: 'createLeague' } | { name: 'leagueDetail'; leagueId: string };
+  | { name: 'leagues' }
+  | { name: 'createLeague' }
+  | { name: 'leagueDetail'; leagueId: string }
+  | { name: 'draftRoom'; leagueId: string };
 
 export type RouteAction =
   | { type: 'openCreateLeague' }
   | { type: 'openLeague'; leagueId: string }
+  | { type: 'openDraftRoom'; leagueId: string }
   | { type: 'openLeagues' }
   | { type: 'back' };
 
@@ -19,6 +23,8 @@ export function reduceRoute(route: Route, action: RouteAction): Route {
       return { name: 'createLeague' };
     case 'openLeague':
       return { name: 'leagueDetail', leagueId: action.leagueId };
+    case 'openDraftRoom':
+      return { name: 'draftRoom', leagueId: action.leagueId };
     case 'openLeagues':
       return { name: 'leagues' };
     case 'back':

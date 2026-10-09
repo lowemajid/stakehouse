@@ -40,6 +40,19 @@ describe('GET /api/leagues/:id/draft', () => {
     expectApiError(res, 404, 'unknown-league');
   });
 
+  it('names the seats so the room can say who is deciding', async () => {
+    const world = await paidLeague();
+    const res = await request(world.app).get(`/api/leagues/${world.leagueId}/draft`);
+    expect(res.status).toBe(200);
+    expect(res.body.draft.seats).toStrictEqual(
+      world.managerIds.map((id: string, index: number) => ({
+        id,
+        displayName: `Manager ${index}`,
+        isAi: false,
+      })),
+    );
+  });
+
   it('exposes queues and a settled clock after completion', async () => {
     const world = await draftedLeague();
     const res = await request(world.app).get(`/api/leagues/${world.leagueId}/draft`);

@@ -22,6 +22,15 @@ describe('reduceRoute', () => {
     expect(reduceRoute(detail, { type: 'back' })).toEqual({ name: 'leagues' });
   });
 
+  it('opens the draft room from a league and returns to the list from it', () => {
+    const detail = reduceRoute(INITIAL_ROUTE, { type: 'openLeague', leagueId: 'lg-1' });
+    const room = reduceRoute(detail, { type: 'openDraftRoom', leagueId: 'lg-1' });
+    expect(room).toEqual({ name: 'draftRoom', leagueId: 'lg-1' });
+    // Leaving the room hands the season flow back to the list, which can
+    // re-enter the league for fresh standings.
+    expect(reduceRoute(room, { type: 'openLeagues' })).toEqual({ name: 'leagues' });
+  });
+
   it('returns to the list from anywhere and is a no-op there', () => {
     const detail = reduceRoute(INITIAL_ROUTE, { type: 'openLeague', leagueId: 'lg-1' });
     expect(reduceRoute(detail, { type: 'openLeagues' })).toEqual({ name: 'leagues' });
