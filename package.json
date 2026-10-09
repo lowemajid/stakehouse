@@ -1,0 +1,32 @@
+{
+  "name": "stakehouse",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "20.x"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @stakehouse/web",
+    "build": "npm run build --workspace @stakehouse/web",
+    "start": "npm run start --workspace @stakehouse/web",
+    "test": "npm run build && vitest run",
+    "lint": "prettier --check . && eslint .",
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@types/node": "^20.14.0",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.4.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.20.0",
+    "vitest": "^3.2.0"
+  }
+}
