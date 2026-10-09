@@ -1,50 +1,12 @@
 import type { LeagueId, ManagerId } from './brand';
 import { DomainError } from './errors';
 import type { LeagueConfig } from './leagueConfig';
+import { standardNormal, weekRng } from './rng';
 import { POINTS_SCALE, pointsAllowedBonusScaled, scoreLineScaled } from './scoring';
 import type { Position, StatLine } from './scoring';
 
-// ---------------------------------------------------------------------------
-// Deterministic randomness: seeds derive from immutable identity.
-// ---------------------------------------------------------------------------
-
-/**
- * The random source for one player's week: mulberry32 seeded by a 32-bit
- * FNV-1a hash of `${leagueId}:${week}:${playerId}`. Because the seed comes
- * from identity alone, the same week always replays to the same stat lines —
- * in tests, in a re-render, and in a dispute in league chat — regardless of
- * iteration order or wall clock.
- */
-export type Rng = () => number;
-
-export function hash32(input: string): number {
-  let h = 2166136261 >>> 0; // FNV-1a offset basis
-  for (let i = 0; i < input.length; i++) {
-    h ^= input.charCodeAt(i);
-    h = Math.imul(h, 16777619); // FNV-1a prime
-  }
-  return h >>> 0;
-}
-
-export function mulberry32(seed: number): Rng {
-  let a = seed >>> 0;
-  return function () {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-export function weekRng(leagueId: string, week: number, playerId: string): Rng {
-  return mulberry32(hash32(`${leagueId}:${week}:${playerId}`));
-}
-
-/** Box-Muller over two uniforms — a standard normal with no hidden state. */
-export function standardNormal(rng: Rng): number {
-  return Math.sqrt(-2 * Math.log(1 - rng())) * Math.cos(2 * Math.PI * rng());
-}
+// weekRng stays part of the simulation surface — the spec names it here.
+export { weekRng };
 
 // ---------------------------------------------------------------------------
 // Players and lineups
