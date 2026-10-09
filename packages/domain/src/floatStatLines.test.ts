@@ -247,9 +247,21 @@ describe('integerStatLine — the engine-side integer contract', () => {
     expect(clean.passTd).toBe(0);
   });
 
-  it('is a no-op on already-integer lines', () => {
-    const clean = integerStatLine(FLOAT_PROJECTIONS.QB);
-    expect(clean).toEqual(FLOAT_PROJECTIONS.QB);
+  it('is idempotent — an already-clean line round-trips unchanged', () => {
+    const once = integerStatLine(FLOAT_PROJECTIONS.QB);
+    const twice = integerStatLine(once);
+    expect(twice).toEqual(once);
+    // And a hand-built integer line passes through untouched.
+    const integer: StatLine = {
+      ...FLOAT_PROJECTIONS.QB,
+      passYards: 302,
+      passTd: 2,
+      interceptions: 1,
+      rushYards: 18,
+      rushTd: 1,
+      fumblesLost: 0,
+    };
+    expect(integerStatLine(integer)).toEqual(integer);
   });
 
   it('sorts fgMade band keys so the output bytes cannot depend on input order', () => {
@@ -301,9 +313,11 @@ describe('drawStatLine under float projections', () => {
 
   it('replays byte-identically for the same identity-seeded draw', () => {
     const card: PlayerCard = {
-      ...structuredClone(FLOAT_PROJECTIONS.QB),
       id: 'p-replay',
       name: 'Replay',
+      position: 'QB',
+      variance: 0.15,
+      projection: structuredClone(FLOAT_PROJECTIONS.QB),
     };
     const first = drawStatLine(card, 'lg_float-demo', 6);
     const second = drawStatLine(card, 'lg_float-demo', 6);

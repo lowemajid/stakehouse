@@ -2,7 +2,7 @@ import type { LeagueId, ManagerId } from './brand';
 import { DomainError } from './errors';
 import type { LeagueConfig } from './leagueConfig';
 import { standardNormal, weekRng } from './rng';
-import { POINTS_SCALE, pointsAllowedBonusScaled, scoreLineScaled } from './scoring';
+import { integerStatLine, POINTS_SCALE, pointsAllowedBonusScaled, scoreLineScaled } from './scoring';
 import type { Position, Projection, StatLine } from './scoring';
 
 // weekRng stays part of the simulation surface — the spec names it here.
@@ -101,10 +101,12 @@ export interface WeekResult {
 
 /**
  * Draw one player's week stat line: each projected stat moves by normal
- * noise scaled by the player's variance, clamped at zero and rounded to an
- * integer. Stats projected at zero never draw (and consume no randomness).
- * The FG record is rebuilt with sorted band keys so the output byte-stream
- * cannot depend on input key order.
+ * noise scaled by the player's variance. The draw itself stays raw; the
+ * assembled line passes through `integerStatLine` — the engine-side integer
+ * contract — before it can exist, so the validator always accepts the
+ * engine's own output. Stats projected at zero never draw (and consume no
+ * randomness). The FG record is rebuilt with sorted band keys so the output
+ * byte-stream cannot depend on input key order.
  */
 export function drawStatLine(player: PlayerCard, leagueId: string, week: number): StatLine {
   if (!Number.isFinite(player.variance) || player.variance < 0) {
@@ -114,32 +116,29 @@ export function drawStatLine(player: PlayerCard, leagueId: string, week: number)
     );
   }
   const rng = weekRng(leagueId, week, player.id);
-  const draw = (expected: number): number => {
-    if (!(expected > 0)) {
-      return 0;
-    }
-    const noisy = expected + standardNormal(rng) * player.variance * expected;
-    return Math.max(0, Math.round(noisy));
-  };
+  // Raw (float) draw. Zero projections draw nothing and consume no
+  // randomness — the RNG stream depends on identity, not on who is benched.
+  const jitter = (expected: number): number =>
+    expected > 0 ? expected + standardNormal(rng) * player.variance * expected : 0;
   const fgMade: Record<string, number> = {};
   for (const band of Object.keys(player.projection.fgMade).sort()) {
-    fgMade[band] = draw(player.projection.fgMade[band] ?? 0);
+    fgMade[band] = jitter(player.projection.fgMade[band] ?? 0);
   }
-  return {
-    passYards: draw(player.projection.passYards),
-    passTd: draw(player.projection.passTd),
-    interceptions: draw(player.projection.interceptions),
-    rushYards: draw(player.projection.rushYards),
-    rushTd: draw(player.projection.rushTd),
-    receptions: draw(player.projection.receptions),
-    fumblesLost: draw(player.projection.fumblesLost),
+  return integerStatLine({
+    passYards: jitter(player.projection.passYards),
+    passTd: jitter(player.projection.passTd),
+    interceptions: jitter(player.projection.interceptions),
+    rushYards: jitter(player.projection.rushYards),
+    rushTd: jitter(player.projection.rushTd),
+    receptions: jitter(player.projection.receptions),
+    fumblesLost: jitter(player.projection.fumblesLost),
     fgMade,
-    extraPointsMade: draw(player.projection.extraPointsMade),
-    sacks: draw(player.projection.sacks),
-    takeaways: draw(player.projection.takeaways),
-    defensiveTd: draw(player.projection.defensiveTd),
-    pointsAllowed: draw(player.projection.pointsAllowed),
-  };
+    extraPointsMade: jitter(player.projection.extraPointsMade),
+    sacks: jitter(player.projection.sacks),
+    takeaways: jitter(player.projection.takeaways),
+    defensiveTd: jitter(player.projection.defensiveTd),
+    pointsAllowed: jitter(player.projection.pointsAllowed),
+  });
 }
 
 function assertPairings(pairings: readonly SimMatchup[]): void {
