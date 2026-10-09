@@ -33,7 +33,7 @@ describe('SignInForm', () => {
     await user.click(screen.getByRole('button', { name: /take my seat/i }));
     expect(await screen.findByText('display name is required')).toBeInTheDocument();
     expect(await screen.findByText('a valid email is required')).toBeInTheDocument();
-    expect(api.createSession).not.toHaveBeenCalled();
+    expect(api.signIn).not.toHaveBeenCalled();
   });
 
   it('rejects a malformed email client-side', async () => {
@@ -44,7 +44,7 @@ describe('SignInForm', () => {
     await user.type(screen.getByLabelText('Email'), 'marge@');
     await user.click(screen.getByRole('button', { name: /take my seat/i }));
     expect(await screen.findByText('a valid email is required')).toBeInTheDocument();
-    expect(api.createSession).not.toHaveBeenCalled();
+    expect(api.signIn).not.toHaveBeenCalled();
   });
 
   it('signs in and hands the user to onSuccess', async () => {
@@ -55,7 +55,7 @@ describe('SignInForm', () => {
     await user.type(screen.getByLabelText('Display name'), 'Marge Kowalski');
     await user.type(screen.getByLabelText('Email'), 'marge@example.com');
     await user.click(screen.getByRole('button', { name: /take my seat/i }));
-    expect(api.createSession).toHaveBeenCalledWith({
+    expect(api.signIn).toHaveBeenCalledWith({
       displayName: 'Marge Kowalski',
       email: 'marge@example.com',
     });
@@ -68,7 +68,7 @@ describe('SignInForm', () => {
   it('shows the server rejection instead of dying silently', async () => {
     const user = userEvent.setup();
     const api = makeFakeApi({
-      createSession: vi
+      signIn: vi
         .fn()
         .mockRejectedValue(new ApiError(400, 'validation-error', 'a valid email is required')),
     });

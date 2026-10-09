@@ -1,4 +1,4 @@
-import type { LeagueConfigInput, ScoringRulesView } from '@stakehouse/api-client';
+import { cents, type LeagueConfig, type ScoringRules } from '@stakehouse/domain';
 
 /**
  * The commissioner's create-league form: string inputs from the DOM, parsed
@@ -26,7 +26,7 @@ export interface CreateLeagueFormValues {
 }
 
 /** The house scoring template; only the PPR reception value moves. */
-export function scoringForPreset(preset: ScoringPreset): ScoringRulesView {
+export function scoringForPreset(preset: ScoringPreset): ScoringRules {
   return {
     passYards: 0.04,
     passTd: 4,
@@ -59,7 +59,7 @@ export type CreateLeagueFieldErrors = Partial<{
 }>;
 
 export type CreateLeagueParseResult =
-  { ok: true; config: LeagueConfigInput } | { ok: false; fieldErrors: CreateLeagueFieldErrors };
+  { ok: true; config: LeagueConfig } | { ok: false; fieldErrors: CreateLeagueFieldErrors };
 
 export function parseCreateLeagueForm(values: CreateLeagueFormValues): CreateLeagueParseResult {
   const errors: CreateLeagueFieldErrors = {};
@@ -74,7 +74,7 @@ export function parseCreateLeagueForm(values: CreateLeagueFormValues): CreateLea
         ? 'the entry fee cannot be negative'
         : 'the entry fee must be whole cents';
 
-  const roster = {} as LeagueConfigInput['roster'];
+  const roster = {} as LeagueConfig['roster'];
   let rosterInvalid = false;
   for (const slot of ['QB', 'RB', 'WR', 'TE', 'FLEX', 'K', 'DEF'] as const) {
     const n = Number.parseInt(values.roster[slot], 10);
@@ -104,13 +104,13 @@ export function parseCreateLeagueForm(values: CreateLeagueFormValues): CreateLea
     ok: true,
     config: {
       name,
-      entryFeeCents: fee.cents as number & { __brand: 'Cents' },
-      size: Number.parseInt(values.size, 10) as LeagueConfigInput['size'],
+      entryFeeCents: cents(fee.cents),
+      size: Number.parseInt(values.size, 10) as LeagueConfig['size'],
       roster,
       scoring: scoringForPreset(values.preset),
       regularSeasonWeeks: weeks,
-      playoffTeams: playoffTeams as LeagueConfigInput['playoffTeams'],
-      payoutSplitPct: split as LeagueConfigInput['payoutSplitPct'],
+      playoffTeams: playoffTeams as LeagueConfig['playoffTeams'],
+      payoutSplitPct: split as LeagueConfig['payoutSplitPct'],
     },
   };
 }

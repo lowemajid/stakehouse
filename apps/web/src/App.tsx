@@ -1,4 +1,4 @@
-import type { StakehouseApi } from '@stakehouse/api-client';
+import type { StakehouseClient } from '@stakehouse/api-client';
 import { ApiProvider } from './state/ApiContext';
 import { LeaguesProvider } from './state/LeaguesContext';
 import { SessionProvider } from './session/SessionContext';
@@ -10,7 +10,7 @@ import { api as defaultApi } from './api/client';
  * shell. Every screen renders what the server says; none computes league
  * state itself. Tests inject a fake through `api`.
  */
-export default function App({ api = defaultApi }: { api?: StakehouseApi }) {
+export default function App({ api = defaultApi }: { api?: StakehouseClient }) {
   return (
     <ApiProvider api={api}>
       <SessionProvider>

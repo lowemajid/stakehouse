@@ -1,16 +1,16 @@
 import { vi } from 'vitest';
-import type { StakehouseApi } from '@stakehouse/api-client';
+import type { StakehouseClient } from '@stakehouse/api-client';
 import { OPEN_LEAGUE_VIEW, SANDBOX_LEAGUE_VIEW, SANDBOX_LEDGER_VIEW } from './fixtures';
 
 /**
- * A full StakehouseApi double for route-level tests. Every method is a vi.fn
+ * A full StakehouseClient double for route-level tests. Every method is a vi.fn
  * returning sensible seed data; tests override the methods they care about.
  */
 export function makeFakeApi(
-  overrides: Partial<Record<keyof StakehouseApi, unknown>> = {},
-): StakehouseApi {
-  const base: Record<keyof StakehouseApi, unknown> = {
-    createSession: vi.fn().mockResolvedValue({
+  overrides: Partial<Record<keyof StakehouseClient, unknown>> = {},
+): StakehouseClient {
+  const base: Record<keyof StakehouseClient, unknown> = {
+    signIn: vi.fn().mockResolvedValue({
       displayName: 'Marge Kowalski',
       email: 'marge@example.com',
     }),
@@ -37,12 +37,12 @@ export function makeFakeApi(
     getLedger: vi.fn().mockResolvedValue(SANDBOX_LEDGER_VIEW),
   };
   for (const [key, value] of Object.entries(overrides)) {
-    base[key as keyof StakehouseApi] = value;
+    base[key as keyof StakehouseClient] = value;
   }
-  return base as unknown as StakehouseApi;
+  return base as unknown as StakehouseClient;
 }
 
 /** Convenience: an api whose listLeagues rejects with the given error. */
-export function apiFailingOnList(error: unknown): StakehouseApi {
+export function apiFailingOnList(error: unknown): StakehouseClient {
   return makeFakeApi({ listLeagues: vi.fn().mockRejectedValue(error) });
 }

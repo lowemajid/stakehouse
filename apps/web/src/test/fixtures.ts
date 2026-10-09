@@ -1,4 +1,5 @@
-import type { LeagueView, LedgerView } from '@stakehouse/api-client';
+import { cents } from '@stakehouse/domain';
+import type { LeagueView, StakehouseClient } from '@stakehouse/api-client';
 
 /** Wire-shape fixtures matching the seeder's sandbox league, for UI tests. */
 
@@ -8,7 +9,7 @@ export const SANDBOX_LEAGUE_VIEW: LeagueView = {
   createdAt: '2026-08-30T12:00:00.000Z',
   config: {
     name: 'The Stakehouse Sandbox',
-    entryFeeCents: 2500,
+    entryFeeCents: cents(2500),
     size: 8,
     roster: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DEF: 1 },
     scoring: {
@@ -40,6 +41,8 @@ export const SANDBOX_LEAGUE_VIEW: LeagueView = {
   poolCents: 20500,
 };
 
+type LedgerView = Awaited<ReturnType<StakehouseClient['getLedger']>>;
+
 export const SANDBOX_LEDGER_VIEW: LedgerView = {
   entries: [
     {
@@ -61,7 +64,7 @@ export const OPEN_LEAGUE_VIEW: LeagueView = {
   createdAt: '2026-10-02T12:00:00.000Z',
   config: {
     name: 'Tuesday Night Kitchen League',
-    entryFeeCents: 5000, // distinct from the sandbox card so lobby assertions stay unambiguous
+    entryFeeCents: cents(5000), // distinct from the sandbox card so lobby assertions stay unambiguous
     size: 8,
     roster: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DEF: 1 },
     scoring: {

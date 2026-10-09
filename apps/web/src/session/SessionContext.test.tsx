@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { StakehouseApi } from '@stakehouse/api-client';
+import type { StakehouseClient } from '@stakehouse/api-client';
 import { ApiProvider } from '../state/ApiContext';
 import { makeFakeApi } from '../test/api';
 import { SessionProvider, useSession } from './SessionContext';
@@ -36,7 +36,7 @@ function Probe() {
   );
 }
 
-function renderSession(api: StakehouseApi) {
+function renderSession(api: StakehouseClient) {
   return render(
     <ApiProvider api={api}>
       <SessionProvider>
@@ -51,7 +51,7 @@ describe('SessionProvider', () => {
     const api = makeFakeApi();
     renderSession(api);
     expect(await screen.findByText('status:signedOut')).toBeInTheDocument();
-    expect(api.createSession).not.toHaveBeenCalled();
+    expect(api.signIn).not.toHaveBeenCalled();
   });
 
   it('restores a stored identity by re-signing on boot', async () => {
@@ -63,7 +63,7 @@ describe('SessionProvider', () => {
     renderSession(api);
     expect(await screen.findByText('status:signedIn')).toBeInTheDocument();
     expect(await screen.findByText('user:Marge Kowalski')).toBeInTheDocument();
-    expect(api.createSession).toHaveBeenCalledWith({
+    expect(api.signIn).toHaveBeenCalledWith({
       displayName: 'Marge Kowalski',
       email: 'marge@example.com',
     });
@@ -75,7 +75,7 @@ describe('SessionProvider', () => {
       JSON.stringify({ displayName: 'Marge Kowalski', email: 'marge@example.com' }),
     );
     const api = makeFakeApi({
-      createSession: vi.fn().mockRejectedValue(new Error('network down')),
+      signIn: vi.fn().mockRejectedValue(new Error('network down')),
     });
     renderSession(api);
     expect(await screen.findByText('status:signedOut')).toBeInTheDocument();

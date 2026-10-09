@@ -7,7 +7,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { LeagueConfigInput, LeagueView } from '@stakehouse/api-client';
+import type { LeagueView } from '@stakehouse/api-client';
+import type { LeagueConfig } from '@stakehouse/domain';
 import { ApiError } from '@stakehouse/api-client';
 import { useApi } from './ApiContext';
 
@@ -26,7 +27,7 @@ export function describeError(error: unknown): string {
 export interface LeaguesHandle {
   leagues: Loadable<LeagueView[]>;
   /** Creates a league and returns it; throws ApiError with field detail. */
-  createLeague(input: LeagueConfigInput): Promise<LeagueView>;
+  createLeague(input: LeagueConfig): Promise<LeagueView>;
   /** Refreshes the lobby list from the server. */
   reload(): void;
 }
@@ -63,7 +64,7 @@ export function LeaguesProvider({ children }: { children: ReactNode }) {
   }, [api, reloadTick]);
 
   const createLeague = useCallback(
-    async (input: LeagueConfigInput) => {
+    async (input: LeagueConfig) => {
       const created = await api.createLeague(input);
       setReloadTick((tick) => tick + 1); // the lobby refetches; server stays the truth
       return created;

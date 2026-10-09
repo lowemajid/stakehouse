@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { SessionUser } from '@stakehouse/api-client';
+import type { SessionInput } from '@stakehouse/api-client';
 import { useApi } from '../state/ApiContext';
 import { clearStoredSession, loadStoredSession, storeSession } from './sessionStorage';
 
@@ -15,9 +15,9 @@ export type SessionStatus = 'restoring' | 'signedOut' | 'signedIn';
 
 export interface SessionHandle {
   status: SessionStatus;
-  user: SessionUser | null;
+  user: SessionInput | null;
   /** Signs in (or re-signs) and persists the identity locally. */
-  signIn(input: { displayName: string; email: string }): Promise<SessionUser>;
+  signIn(input: { displayName: string; email: string }): Promise<SessionInput>;
   /** Forgets the local identity; the next action re-signs from the form. */
   switchManager(): void;
 }
@@ -26,7 +26,7 @@ const SessionContext = createContext<SessionHandle | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const api = useApi();
-  const [user, setUser] = useState<SessionUser | null>(null);
+  const [user, setUser] = useState<SessionInput | null>(null);
   const [status, setStatus] = useState<SessionStatus>('restoring');
 
   // Boot restore: a stored identity re-signs the idempotent session route,
@@ -39,7 +39,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
     let cancelled = false;
     api
-      .createSession(stored)
+      .signIn(stored)
       .then((restored) => {
         if (cancelled) return;
         setUser(restored);
@@ -57,7 +57,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(
     async (input: { displayName: string; email: string }) => {
-      const signedIn = await api.createSession(input);
+      const signedIn = await api.signIn(input);
       storeSession(signedIn);
       setUser(signedIn);
       setStatus('signedIn');

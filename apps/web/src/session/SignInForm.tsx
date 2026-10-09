@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from 'react';
-import type { SessionUser } from '@stakehouse/api-client';
+import type { SessionInput } from '@stakehouse/api-client';
 import { Button } from '../components/ui';
 import { useSession } from './SessionContext';
 
 interface SignInFormProps {
   /** Called with the signed-in identity after the server accepts it. */
-  onSuccess: (user: SessionUser) => void;
+  onSuccess: (user: SessionInput) => void;
 }
 
 interface SignInInput {

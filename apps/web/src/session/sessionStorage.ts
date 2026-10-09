@@ -1,4 +1,4 @@
-import type { SessionUser } from '@stakehouse/api-client';
+import type { SessionInput } from '@stakehouse/api-client';
 
 /**
  * Local identity persistence for the demo sign-in. The signed cookie stays
@@ -10,7 +10,7 @@ import type { SessionUser } from '@stakehouse/api-client';
 
 const STORAGE_KEY = 'sh.session';
 
-export function loadStoredSession(): SessionUser | null {
+export function loadStoredSession(): SessionInput | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
@@ -23,7 +23,7 @@ export function loadStoredSession(): SessionUser | null {
   }
 }
 
-export function storeSession(user: SessionUser): void {
+export function storeSession(user: SessionInput): void {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
   } catch {
