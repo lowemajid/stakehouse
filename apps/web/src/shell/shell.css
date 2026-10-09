@@ -1,0 +1,68 @@
+/*
+ * App shell styles. Every value comes from the theme custom properties —
+ * no raw hex here. Brass appears only on money (ui.css owns .sh-money).
+ */
+.sh-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.sh-shell__header {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0.9rem 1.5rem;
+  background: var(--sh-felt-900);
+  border-bottom: 1px solid var(--sh-felt-500);
+}
+.sh-shell__brand {
+  font-family: var(--sh-font-display);
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--sh-cream);
+  text-decoration: none;
+  letter-spacing: 0.01em;
+}
+.sh-shell__header nav {
+  display: flex;
+  gap: 1rem;
+}
+.sh-shell__navlink,
+.sh-shell__signin {
+  color: var(--sh-cream);
+  text-decoration: none;
+  font-size: 0.95rem;
+  opacity: 0.85;
+}
+.sh-shell__navlink:hover,
+.sh-shell__signin:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+.sh-shell__session {
+  margin-left: auto;
+  font-size: 0.95rem;
+}
+.sh-shell__header select {
+  background: var(--sh-felt-700);
+  color: var(--sh-cream);
+  border: 1px solid var(--sh-felt-500);
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  font-family: var(--sh-font-ui);
+}
+.sh-shell__notice {
+  margin: 0;
+  padding: 0.35rem 1.5rem;
+  font-size: 0.8rem;
+  color: var(--sh-cream);
+  opacity: 0.66;
+  background: var(--sh-felt-700);
+}
+.sh-shell__main {
+  flex: 1;
+  width: 100%;
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}

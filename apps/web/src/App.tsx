@@ -1,19 +1,23 @@
-import { DesignSystemGallery } from './gallery/DesignSystemGallery';
+import type { StakehouseApi } from '@stakehouse/api-client';
+import { ApiProvider } from './state/ApiContext';
+import { LeaguesProvider } from './state/LeaguesContext';
+import { SessionProvider } from './session/SessionContext';
+import { AppShell } from './shell/AppShell';
+import { api as defaultApi } from './api/client';
 
-export default function App() {
+/**
+ * The web app: API client at the root, session and league state above the
+ * shell. Every screen renders what the server says; none computes league
+ * state itself. Tests inject a fake through `api`.
+ */
+export default function App({ api = defaultApi }: { api?: StakehouseApi }) {
   return (
-    <main className="sh-home">
-      <h1 className="sh-home__title">Stakehouse</h1>
-      <hr className="sh-home__rule" />
-      <p className="sh-home__lede">
-        Demo-money fantasy leagues where the ledger is the product — transparent pots, live snake
-        drafts, AI managers, and season-end payouts.
-      </p>
-      <p className="sh-home__note">
-        Design-system slice — tokens, type, and base components below. The league engine, draft
-        room, and payouts land in upcoming slices. Checkout is simulated; no real money moves here.
-      </p>
-      <DesignSystemGallery />
-    </main>
+    <ApiProvider api={api}>
+      <SessionProvider>
+        <LeaguesProvider>
+          <AppShell />
+        </LeaguesProvider>
+      </SessionProvider>
+    </ApiProvider>
   );
 }
