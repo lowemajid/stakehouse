@@ -48,6 +48,7 @@ export function draftView(overrides: Partial<DraftView> = {}): DraftView {
       { playerId: 'pl-3', position: 'WR', name: 'Teo Ferreira', projectedPoints: 12.8 },
     ],
     clock: { overall: 2, managerId: 'mgr-marge', deadline: 1_791_230_400_000 },
+    commissionerSeatId: 'mgr-ava',
     rosters: { 'mgr-ava': [{ playerId: 'pl-1', position: 'QB', slot: 'QB' }], 'mgr-marge': [] },
     queues: {
       'mgr-ava': { queue: ['pl-2', 'pl-3'], autopick: true },
@@ -57,6 +58,16 @@ export function draftView(overrides: Partial<DraftView> = {}): DraftView {
       { id: 'mgr-ava', displayName: 'Ava Whitfield', isAi: false },
       { id: 'mgr-marge', displayName: 'Marge "Two Beers" Kowalski', isAi: true },
     ],
+    managers: {
+      'mgr-ava': { displayName: 'Ava Whitfield', isAi: false },
+      'mgr-marge': { displayName: 'Marge "Two Beers" Kowalski', isAi: true },
+    },
+    players: {
+      'pl-1': { name: 'Dov Amado', position: 'QB', projectedPoints: 18.4 },
+      'pl-2': { name: 'Silas Brummell', position: 'RB', projectedPoints: 14.2 },
+      'pl-3': { name: 'Teo Ferreira', position: 'WR', projectedPoints: 12.8 },
+    },
+    you: 'mgr-ava',
     ...overrides,
   };
 }

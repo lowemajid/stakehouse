@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import type { Request } from 'express';
 import { applyPick, createDraft, resolveDeadline, startDraft } from '@stakehouse/domain';
 import type { DraftState } from '@stakehouse/domain';
 import type { LeagueRecord } from '@stakehouse/persistence';

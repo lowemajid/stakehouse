@@ -25,6 +25,12 @@ export function draftViewFixture(overrides: Partial<DraftView> = {}): DraftView 
     commissionerSeatId: seats[0],
     rosters: Object.fromEntries(seats.map((id) => [id, []])),
     queues: Object.fromEntries(seats.map((id) => [id, { queue: [], autopick: true }])),
+    seats: [
+      { id: seats[0], displayName: 'Marge Kowalski', isAi: false },
+      { id: seats[1], displayName: 'Chester Royales', isAi: true },
+      { id: seats[2], displayName: 'The Coventry Kings', isAi: true },
+    ],
+    you: seats[0],
     managers: {
       [seats[0]]: { displayName: 'Marge Kowalski', isAi: false },
       [seats[1]]: { displayName: 'Chester Royales', isAi: true },

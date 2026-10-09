@@ -38,7 +38,7 @@ export function makeFakeApi(
       poolCents: 2500,
     }),
     getLedger: vi.fn().mockResolvedValue(SANDBOX_LEDGER_VIEW),
-    getDraft: vi.fn().mockResolvedValue(draftViewFixture({ status: 'complete' })),
+    getDraft: vi.fn().mockResolvedValue(draftViewFixture()),
     startDraft: vi.fn().mockResolvedValue(draftViewFixture()),
     postPick: vi.fn().mockImplementation((_leagueId: string, playerId: string) =>
       Promise.resolve({

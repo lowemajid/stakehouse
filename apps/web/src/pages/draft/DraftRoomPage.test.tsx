@@ -45,7 +45,7 @@ describe('DraftRoomPage — server-first room', () => {
 
   it('a spectator sees the room but arms no pick buttons', async () => {
     const api = makeFakeApi({
-      getDraft: vi.fn().mockResolvedValue({ draft: draftViewFixture(), you: null }),
+      getDraft: vi.fn().mockResolvedValue(draftViewFixture({ you: null })),
     });
     renderDraft('/leagues/lg-sandbox/draft', api);
     expect(await screen.findByRole('table', { name: /available players/i })).toBeInTheDocument();
@@ -56,9 +56,7 @@ describe('DraftRoomPage — server-first room', () => {
   it('the pending room shows the order and a start CTA that posts the intent', async () => {
     const user = userEvent.setup();
     const api = makeFakeApi({
-      getDraft: vi
-        .fn()
-        .mockResolvedValue({ draft: draftViewFixture({ status: 'pending' }), you: 'mgr-marge' }),
+      getDraft: vi.fn().mockResolvedValue(draftViewFixture({ status: 'pending' })),
     });
     renderDraft('/leagues/lg-sandbox/draft', api);
     expect(await screen.findByText(/the draft has not started/i)).toBeInTheDocument();
@@ -70,7 +68,7 @@ describe('DraftRoomPage — server-first room', () => {
 
   it('an AI pick lands through a POST response without a page reload', async () => {
     const api = makeFakeApi({
-      getDraft: vi.fn().mockResolvedValue({ draft: liveAfterOnePick(), you: null }),
+      getDraft: vi.fn().mockResolvedValue({ ...liveAfterOnePick(), you: null }),
     });
     renderDraft('/leagues/lg-sandbox/draft', api);
     // AI seat is on the clock and visibly thinking.
@@ -83,13 +81,13 @@ describe('DraftRoomPage — server-first room', () => {
   it('a rejected pick surfaces the server reason, not a blank screen', async () => {
     const user = userEvent.setup();
     const api = makeFakeApi({
-      draftPick: vi
+      postPick: vi
         .fn()
         .mockRejectedValue(new ApiError(409, 'clock-expired', 'your pick clock has expired')),
     });
     renderDraft('/leagues/lg-sandbox/draft', api);
     await user.click(await screen.findByRole('button', { name: /draft dov amado/i }));
-    await waitFor(() => expect(api.draftPick).toHaveBeenCalledWith('lg-sandbox', 'p-1'));
+    await waitFor(() => expect(api.postPick).toHaveBeenCalledWith('lg-sandbox', 'p-1'));
     expect(await screen.findByText(/your pick clock has expired/i)).toBeInTheDocument();
   });
 
@@ -98,7 +96,7 @@ describe('DraftRoomPage — server-first room', () => {
     const api = makeFakeApi();
     renderDraft('/leagues/lg-sandbox/draft', api);
     await user.click(await screen.findByRole('button', { name: /queue dov amado/i }));
-    await waitFor(() => expect(api.setDraftQueue).toHaveBeenCalledWith('lg-sandbox', ['p-1']));
+    await waitFor(() => expect(api.putQueue).toHaveBeenCalledWith('lg-sandbox', ['p-1']));
   });
 
   it('the autopick toggle is my preference and it persists', async () => {
@@ -116,7 +114,7 @@ describe('DraftRoomPage — server-first room', () => {
     const api = makeFakeApi({ getDraft });
     renderDraft('/leagues/lg-sandbox/draft', api);
     expect(await screen.findByText(/the room is flooded/i)).toBeInTheDocument();
-    getDraft.mockResolvedValue({ draft: draftViewFixture(), you: 'mgr-marge' });
+    getDraft.mockResolvedValue(draftViewFixture());
     await user.click(screen.getByRole('button', { name: /try again/i }));
     expect(await screen.findByText(/your pick/i)).toBeInTheDocument();
   });
@@ -139,12 +137,11 @@ describe('DraftRoomPage — the live stream', () => {
 
   it('the countdown shows time remaining and turns urgent inside ten seconds', async () => {
     const api = makeFakeApi({
-      getDraft: vi.fn().mockResolvedValue({
-        draft: draftViewFixture({
+      getDraft: vi.fn().mockResolvedValue(
+        draftViewFixture({
           clock: { overall: 1, managerId: DRAFT_SEAT_IDS[0], deadline: Date.now() + 8_000 },
         }),
-        you: 'mgr-marge',
-      }),
+      ),
     });
     renderDraft('/leagues/lg-sandbox/draft', api);
     const clock = await screen.findByRole('timer');
@@ -154,12 +151,11 @@ describe('DraftRoomPage — the live stream', () => {
 
   it('a relaxed clock is not urgent', async () => {
     const api = makeFakeApi({
-      getDraft: vi.fn().mockResolvedValue({
-        draft: draftViewFixture({
+      getDraft: vi.fn().mockResolvedValue(
+        draftViewFixture({
           clock: { overall: 1, managerId: DRAFT_SEAT_IDS[0], deadline: Date.now() + 45_000 },
         }),
-        you: 'mgr-marge',
-      }),
+      ),
     });
     renderDraft('/leagues/lg-sandbox/draft', api);
     const clock = await screen.findByRole('timer');
@@ -169,13 +165,12 @@ describe('DraftRoomPage — the live stream', () => {
 
   it('an expired AI clock fires the room autopick and toasts who landed', async () => {
     const api = makeFakeApi({
-      getDraft: vi.fn().mockResolvedValue({
-        draft: draftViewFixture({
+      getDraft: vi.fn().mockResolvedValue(
+        draftViewFixture({
           clock: { overall: 1, managerId: DRAFT_SEAT_IDS[1], deadline: Date.now() - 5 },
         }),
-        you: 'mgr-marge',
-      }),
-      draftAutopick: vi.fn().mockResolvedValue({
+      ),
+      postAutopick: vi.fn().mockResolvedValue({
         autopicked: {
           overall: 1,
           managerId: DRAFT_SEAT_IDS[1],
@@ -186,7 +181,7 @@ describe('DraftRoomPage — the live stream', () => {
       }),
     });
     renderDraft('/leagues/lg-sandbox/draft', api);
-    await waitFor(() => expect(api.draftAutopick).toHaveBeenCalledWith('lg-sandbox'));
+    await waitFor(() => expect(api.postAutopick).toHaveBeenCalledWith('lg-sandbox'));
     expect(
       await screen.findByText(/clock expired — chester royales autopicked dov amado/i),
     ).toBeInTheDocument();
@@ -198,13 +193,12 @@ describe('DraftRoomPage — the live stream', () => {
     // server's resolveDeadline answers from the queue or best available.
     window.localStorage.setItem('sh-autopick:mgr-marge', 'off');
     const api = makeFakeApi({
-      getDraft: vi.fn().mockResolvedValue({
-        draft: draftViewFixture({
+      getDraft: vi.fn().mockResolvedValue(
+        draftViewFixture({
           clock: { overall: 1, managerId: DRAFT_SEAT_IDS[0], deadline: Date.now() - 5 },
         }),
-        you: 'mgr-marge',
-      }),
-      draftAutopick: vi.fn().mockResolvedValue({
+      ),
+      postAutopick: vi.fn().mockResolvedValue({
         autopicked: {
           overall: 1,
           managerId: DRAFT_SEAT_IDS[0],
@@ -215,7 +209,7 @@ describe('DraftRoomPage — the live stream', () => {
       }),
     });
     renderDraft('/leagues/lg-sandbox/draft', api);
-    await waitFor(() => expect(api.draftAutopick).toHaveBeenCalledWith('lg-sandbox'));
+    await waitFor(() => expect(api.postAutopick).toHaveBeenCalledWith('lg-sandbox'));
     expect(await screen.findByText(/clock expired —.*autopicked/i)).toBeInTheDocument();
   });
 });
@@ -241,7 +235,7 @@ describe('DraftRoomPage — fast-forward and recap', () => {
   it('the commissioner gets a confirm before fast-forwarding the rest of the draft', async () => {
     const user = userEvent.setup();
     const api = makeFakeApi({
-      draftFastForward: vi.fn().mockResolvedValue({ fastForwarded: 34, draft: completeView() }),
+      postFastForward: vi.fn().mockResolvedValue({ fastForwarded: 34, draft: completeView() }),
     });
     renderDraft('/leagues/lg-sandbox/draft', api);
     await user.click(await screen.findByRole('button', { name: /fast-forward/i }));
@@ -250,19 +244,18 @@ describe('DraftRoomPage — fast-forward and recap', () => {
     expect(dialog.textContent).toMatch(/no take-backs/i);
     await user.click(screen.getByRole('button', { name: /^cancel$/i }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(api.draftFastForward).not.toHaveBeenCalled();
+    expect(api.postFastForward).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: /fast-forward/i }));
     await user.click(screen.getByRole('button', { name: /resolve every pick/i }));
-    await waitFor(() => expect(api.draftFastForward).toHaveBeenCalledWith('lg-sandbox'));
+    await waitFor(() => expect(api.postFastForward).toHaveBeenCalledWith('lg-sandbox'));
     expect(await screen.findByRole('table', { name: /draft recap/i })).toBeInTheDocument();
   });
 
   it('a non-commissioner sees no fast-forward control', async () => {
     const api = makeFakeApi({
-      getDraft: vi.fn().mockResolvedValue({
-        draft: draftViewFixture({ commissionerSeatId: DRAFT_SEAT_IDS[1] }),
-        you: 'mgr-marge',
-      }),
+      getDraft: vi
+        .fn()
+        .mockResolvedValue(draftViewFixture({ commissionerSeatId: DRAFT_SEAT_IDS[1] })),
     });
     renderDraft('/leagues/lg-sandbox/draft', api);
     expect(await screen.findByRole('button', { name: /draft dov amado/i })).toBeEnabled();
@@ -271,7 +264,7 @@ describe('DraftRoomPage — fast-forward and recap', () => {
 
   it('the recap lists every pick in snake order with seat and player names', async () => {
     const api = makeFakeApi({
-      getDraft: vi.fn().mockResolvedValue({ draft: completeView(), you: 'mgr-marge' }),
+      getDraft: vi.fn().mockResolvedValue(completeView()),
     });
     renderDraft('/leagues/lg-sandbox/draft', api);
     const recap = await screen.findByRole('table', { name: /draft recap/i });
@@ -286,7 +279,7 @@ describe('DraftRoomPage — fast-forward and recap', () => {
   it('the commissioner hands the league to the season engine', async () => {
     const user = userEvent.setup();
     const api = makeFakeApi({
-      getDraft: vi.fn().mockResolvedValue({ draft: completeView(), you: 'mgr-marge' }),
+      getDraft: vi.fn().mockResolvedValue(completeView()),
     });
     renderDraft('/leagues/lg-sandbox/draft', api);
     await user.click(await screen.findByRole('button', { name: /start week 1/i }));
@@ -296,11 +289,12 @@ describe('DraftRoomPage — fast-forward and recap', () => {
 
   it('a non-commissioner waits for the week-1 handoff', async () => {
     const api = makeFakeApi({
-      getDraft: vi.fn().mockResolvedValue({
-        draft: draftViewFixture({ status: 'complete', commissionerSeatId: DRAFT_SEAT_IDS[1] }),
-        you: 'mgr-marge',
-      }),
-      draftFastForward: vi.fn(),
+      getDraft: vi
+        .fn()
+        .mockResolvedValue(
+          draftViewFixture({ status: 'complete', commissionerSeatId: DRAFT_SEAT_IDS[1] }),
+        ),
+      postFastForward: vi.fn(),
     });
     renderDraft('/leagues/lg-sandbox/draft', api);
     expect(await screen.findByText(/waiting for the commissioner/i)).toBeInTheDocument();

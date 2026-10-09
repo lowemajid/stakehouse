@@ -87,7 +87,6 @@ const payBuyInResultSchema = z.object({
   poolCents: z.number().int(),
 });
 
-
 export type ApiErrorDetail = { path: string; message: string };
 
 // ---------------------------------------------------------------------------
@@ -385,7 +384,6 @@ export function createClient(options: ClientOptions = {}): StakehouseClient {
     },
 
     async postPick(
-
       leagueId: string,
       playerId: string,
     ): Promise<{ pick: DraftPickView; draft: DraftView }> {

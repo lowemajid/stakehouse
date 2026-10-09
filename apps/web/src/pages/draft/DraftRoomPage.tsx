@@ -64,7 +64,7 @@ export function DraftRoomPage({ leagueId }: { leagueId: string }) {
     api
       .getDraft(leagueId)
       .then((result) => {
-        if (alive) setState({ kind: 'ready', draft: result.draft, you: result.you });
+        if (alive) setState({ kind: 'ready', draft: result, you: result.you });
       })
       .catch((error: unknown) => {
         if (alive) {
@@ -122,7 +122,7 @@ export function DraftRoomPage({ leagueId }: { leagueId: string }) {
     const overall = current.draft.clock.overall;
     firedForOverallRef.current = overall;
     try {
-      const result = await api.draftAutopick(leagueId);
+      const result = await api.postAutopick(leagueId);
       applyView(result.draft);
       const seatName =
         result.draft.managers[result.autopicked.managerId]?.displayName ??
@@ -194,7 +194,7 @@ export function DraftRoomPage({ leagueId }: { leagueId: string }) {
   async function pick(playerId: string): Promise<void> {
     if (state.kind !== 'ready') return;
     try {
-      const result = await api.draftPick(leagueId, playerId);
+      const result = await api.postPick(leagueId, playerId);
       applyView(result.draft);
     } catch (error) {
       if (error instanceof ApiError) {
@@ -208,7 +208,7 @@ export function DraftRoomPage({ leagueId }: { leagueId: string }) {
 
   const saveQueue = useCallback(
     async (queue: string[]): Promise<void> => {
-      await api.setDraftQueue(leagueId, queue);
+      await api.putQueue(leagueId, queue);
     },
     [api, leagueId],
   );
@@ -234,7 +234,7 @@ export function DraftRoomPage({ leagueId }: { leagueId: string }) {
   async function start(): Promise<void> {
     try {
       const result = await api.startDraft(leagueId);
-      applyView(result.draft);
+      applyView(result);
     } catch (error) {
       if (error instanceof ApiError) setNote(error.message);
       else throw error;
@@ -244,7 +244,7 @@ export function DraftRoomPage({ leagueId }: { leagueId: string }) {
   /** Commissioner fast-forward: the engine resolves every remaining pick.
    * ApiError propagates — the confirm modal shows the server's reason. */
   async function fastForward(): Promise<void> {
-    const result = await api.draftFastForward(leagueId);
+    const result = await api.postFastForward(leagueId);
     applyView(result.draft);
     setToast({
       id: Date.now(),

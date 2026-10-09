@@ -11,7 +11,8 @@ import { leagueId, managerId, record } from '@stakehouse/domain';
 import type { LedgerEntry } from '@stakehouse/domain';
 
 const [file, mode, rawLeagueId] = process.argv.slice(2);
-if (!file || !mode) throw new Error('usage: tsx .evidence-seed.ts <db-file> <players-only|ai-seats> [leagueId]');
+if (!file || !mode)
+  throw new Error('usage: tsx .evidence-seed.ts <db-file> <players-only|ai-seats> [leagueId]');
 
 const store = createSqliteStore({ file });
 

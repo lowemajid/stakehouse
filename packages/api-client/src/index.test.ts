@@ -313,6 +313,10 @@ function draftViewFixture(status: 'pending' | 'live' | 'complete'): object {
       'mgr-marge': { queue: ['p-1'], autopick: true },
       'mgr-ai-1': { queue: [], autopick: true },
     },
+    seats: [
+      { id: 'mgr-marge', displayName: 'Marge Kowalski', isAi: false },
+      { id: 'mgr-ai-1', displayName: 'Chester Royales', isAi: true },
+    ],
     managers: {
       'mgr-marge': { displayName: 'Marge Kowalski', isAi: false },
       'mgr-ai-1': { displayName: 'Chester Royales', isAi: true },
