@@ -65,7 +65,12 @@ export interface DraftView {
 const FLEX_ELIGIBLE = new Set<Position>(['RB', 'WR', 'TE']);
 const DEFAULT_PICK_SECONDS = 30;
 
-/** Ranks the universe the way the board shows it: projection, then name, then id. */
+/**
+ * Ranks the universe the way the board shows it: projection, then name, then id.
+ * Points come from the seeder's `expectedPoints` — the sanctioned scorer for
+ * expectation-valued projections, whose fractional counters a raw scoreLine
+ * call rejects.
+ */
 export function rankedBoard(players: readonly PlayerCard[], scoring: ScoringRules): BoardEntry[] {
   return players
     .map((player) => ({

@@ -1,6 +1,16 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import { draftedLeague, expectApiError, paidLeague, signIn, T0, USER } from './testSupport';
+import { generatePlayerUniverse } from '@stakehouse/seeder';
+import {
+  draftedLeague,
+  expectApiError,
+  LEAGUE_REQUEST,
+  makeApp,
+  paidLeague,
+  signIn,
+  T0,
+  USER,
+} from './testSupport';
 import { managerIdForEmail } from './sessions';
 
 /**
@@ -70,6 +80,23 @@ describe('GET /api/leagues/:id/draft', () => {
     expect(res.status).toBe(200);
     // The league's commissioner is agent 0 (the creator).
     expect(res.body.draft.commissionerSeatId).toBe(managerIdForEmail(USER(0).email));
+  });
+
+  it('boards the real seeder universe — fractional projections score, not crash', async () => {
+    // generatePlayerUniverse stores expectation-valued projections (fractional
+    // counters); the board must score them with the seeder's scaled arithmetic
+    // — a direct scoreLine call rejects fractional counts and 500s the room.
+    const world = makeApp();
+    for (const card of generatePlayerUniverse()) world.store.players.upsert(card);
+    const commissioner = await signIn(world.app, 0);
+    const created = await commissioner.post('/api/leagues').send(LEAGUE_REQUEST);
+    const leagueId: string = created.body.league.id;
+    const res = await request(world.app).get(`/api/leagues/${leagueId}/draft`);
+    expect(res.status).toBe(200);
+    expect(res.body.draft.board).toHaveLength(300);
+    for (const entry of res.body.draft.board) {
+      expect(Number.isFinite(entry.projectedPoints)).toBe(true);
+    }
   });
 });
 
