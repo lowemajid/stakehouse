@@ -66,3 +66,47 @@ jobs:
       - name: Expo config validation
         run: npx expo config --type public
         working-directory: apps/mobile
+
+  android-apk:
+    # Merges only: the artifact left behind by each merge run is the
+    # deliverable, and PRs skip the long Gradle build entirely.
+    name: android — debug-signed release APK artifact
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+      - run: npm ci
+      # Best-effort: hosted runners usually ship licenses pre-accepted. If
+      # cmdline-tools ever move, this no-ops rather than masking the real
+      # gate — assembleRelease below fails loudly on any SDK problem.
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+      - name: Expo prebuild (android)
+        run: npx expo prebuild -p android --no-install
+        working-directory: apps/mobile
+      - name: Gradle assembleRelease (debug-signed)
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+        working-directory: apps/mobile/android
+      - name: Smoke-assert the APK exists
+        run: |
+          APK=apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          ls -lh "$APK"
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stakehouse-android-debug-apk
+          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
