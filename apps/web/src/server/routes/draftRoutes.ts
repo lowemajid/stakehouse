@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { applyPick, createDraft, resolveDeadline, startDraft } from '@stakehouse/domain';
-import type { DraftState, PickRejectionReason } from '@stakehouse/domain';
+import type { DraftState } from '@stakehouse/domain';
 import type { LeagueRecord } from '@stakehouse/persistence';
 import { z } from 'zod';
 import type { ApiContext } from '../context';
 import { HttpError } from '../http';
+import { rejectDraft } from '../errorMapping';
 import { requireCommissioner, requireLeague, requireSeat } from '../guards';
 import { requireSession } from '../sessions';
 import { buildDraftView } from '../draftView';
@@ -24,14 +25,8 @@ const queueSchema = z.object({
   }),
 });
 
-/** Human message for each guarded rejection — the /pick contract tests
- * assert both the code and this message. */
-const PICK_REJECTION_MESSAGES: Record<PickRejectionReason, string> = {
-  'not-your-turn': 'it is not your turn to pick',
-  'player-taken': 'that player is already on a roster',
-  'clock-expired': 'your pick clock expired — the autopick must resolve first',
-  'duplicate-roster-slot': 'that player does not fit any open roster slot',
-};
+/** Human reasons for each guarded rejection live in the single error-mapping
+ * table — routes raise them through `rejectDraft`. */
 
 export function draftRoutes(ctx: ApiContext): Router {
   const router = Router();
@@ -97,7 +92,7 @@ export function draftRoutes(ctx: ApiContext): Router {
     }
     let state = ctx.store.drafts.get(league.id);
     if (state && state.status !== 'pending') {
-      throw new HttpError(409, 'draft-already-complete', 'the draft has already completed');
+      rejectDraft('draft-already-complete');
     }
     if (!state) {
       const universe = ctx.store.players.all();
@@ -121,11 +116,11 @@ export function draftRoutes(ctx: ApiContext): Router {
     const body = pickSchema.parse(req.body);
     const state = storedState(league);
     if (state.status === 'complete') {
-      throw new HttpError(409, 'draft-already-complete', 'the draft has already completed');
+      rejectDraft('draft-already-complete');
     }
     const result = applyPick(state, { managerId: seat.id, playerId: body.playerId }, ctx.now());
     if (!result.ok) {
-      throw new HttpError(409, result.reason, PICK_REJECTION_MESSAGES[result.reason]);
+      rejectDraft(result.reason);
     }
     ctx.store.drafts.save(league.id, result.next);
     ctx.broadcaster.publish(String(league.id), 'draft', publishView(league));

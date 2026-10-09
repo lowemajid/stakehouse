@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
 import { DomainError } from '@stakehouse/domain';
-import type { DomainErrorCode } from '@stakehouse/domain';
+import { statusForDomain } from './errorMapping';
 
 /**
  * The HTTP error envelope: every failure a client sees is
@@ -21,41 +21,11 @@ export class HttpError extends Error {
   }
 }
 
-/** The status each domain rejection earns. */
-const DOMAIN_STATUS: Record<DomainErrorCode, number> = {
-  // Malformed input — the client sent something the domain cannot parse.
-  'not-an-integer': 400,
-  'unsafe-integer': 400,
-  'money-overflow': 400,
-  'empty-id': 400,
-  'invalid-timestamp': 400,
-  'zero-weights': 400,
-  'invalid-payout-split': 400,
-  'invalid-scoring-rules': 400,
-  'invalid-schedule': 400,
-  'invalid-recipients': 400,
-  // State-machine violations — the request arrived at the wrong time.
-  'invalid-draft-state': 409,
-  'invalid-pick-number': 409,
-  'invalid-ledger-entry': 409,
-  'invalid-lineup': 409,
-  'invalid-matchup': 409,
-  'invalid-week-result': 409,
-  'invalid-bracket': 409,
-  'empty-pool': 409,
-  // The request named a resource the domain does not know.
-  'unknown-player': 404,
-  // State conflict — autopick asked for a pick with nothing available.
-  'no-autopick-available': 409,
-  // Internal invariants — not client-fixable, so they surface as server faults.
-  'invalid-stat-line': 500,
-  'unknown-scoring-band': 500,
-};
-
 /**
- * Domain rejections carry their own machine codes; most are already
- * translated by the routes that call them — these are the ones a route lets
- * propagate because the mapping is global, not route-specific.
+ * Domain rejections carry their own machine codes; the status each earns is
+ * decided by the single table in errorMapping.ts. Most domain rejections are
+ * already translated by the routes that call them; these are the ones a
+ * route lets propagate because the mapping is global, not route-specific.
  */
 export function errorMiddleware(
   err: unknown,
@@ -87,7 +57,7 @@ export function errorMiddleware(
     return;
   }
   if (err instanceof DomainError) {
-    res.status(DOMAIN_STATUS[err.code]).json({ error: { code: err.code, message: err.message } });
+    res.status(statusForDomain(err.code)).json({ error: { code: err.code, message: err.message } });
     return;
   }
   console.error('UNEXPECTED_API_ERROR', err);
