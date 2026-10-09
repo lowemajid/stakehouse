@@ -1,14 +1,16 @@
 import type { ReactNode } from 'react';
-import { Money, Panel } from '../components/ui';
+import { Panel } from '../components/ui';
 import { navigateTo, parsePath, useRoute } from '../router/route';
 import { useLeagues } from '../state/LeaguesContext';
 import { useSession } from '../session/SessionContext';
+import { CreateLeaguePage } from '../pages/CreateLeaguePage';
+import { LeaguePage } from '../pages/LeaguePage';
 import { LobbyPage } from '../pages/LobbyPage';
 import { SignInPage } from '../pages/SignInPage';
 import './shell.css';
 
 /** An anchor that navigates through the history router, not the browser. */
-function ShellLink({
+export function ShellLink({
   href,
   className,
   children,
@@ -75,40 +77,6 @@ function SessionArea() {
   );
 }
 
-/** League detail placeholder — draft, season, and ledger screens land next. */
-function LeaguePage({ leagueId }: { leagueId: string }) {
-  const { leagues } = useLeagues();
-  const league =
-    leagues.state === 'ready' ? leagues.value.find((l) => l.id === leagueId) : undefined;
-  return (
-    <Panel className="sh-page" title={league ? league.name : 'League'}>
-      {league ? (
-        <p className="sh-muted">
-          Draft, matchups, and standings land in the next slices. The pot stands at{' '}
-          <Money cents={league.poolCents} />.
-        </p>
-      ) : (
-        <p className="sh-muted" aria-live="polite">
-          Fetching the league…
-        </p>
-      )}
-    </Panel>
-  );
-}
-
-/** Create-league placeholder — the commissioner form lands with checkout. */
-function CreateLeaguePage() {
-  return (
-    <Panel className="sh-page">
-      <h2 className="sh-page__title">Create a league</h2>
-      <p className="sh-muted">
-        The commissioner form — entry fee, size, roster, scoring, payouts — arrives with the
-        checkout slice.
-      </p>
-    </Panel>
-  );
-}
-
 /** Unknown URLs get a way home, never a blank screen. */
 function NotFoundPage() {
   return (
@@ -130,7 +98,7 @@ function CurrentRoute() {
     case 'createLeague':
       return <CreateLeaguePage />;
     case 'league':
-      return <LeaguePage leagueId={route.leagueId} />;
+      return <LeaguePage leagueId={route.leagueId} tab={route.tab} />;
     case 'notFound':
       return <NotFoundPage />;
   }

@@ -66,3 +66,176 @@
   margin: 0 auto;
   padding: 2rem 1.5rem 4rem;
 }
+
+/* Pages — the shared frame every screen hangs in. */
+.sh-page__title {
+  font-family: var(--sh-font-display);
+  font-weight: 600;
+  font-size: 1.9rem;
+  margin: 0 0 0.5rem;
+  color: var(--sh-cream);
+}
+.sh-page__subtitle {
+  font-family: var(--sh-font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+  color: var(--sh-cream);
+}
+.sh-muted {
+  color: var(--sh-cream);
+  opacity: 0.72;
+  margin: 0.25rem 0 1rem;
+}
+
+/* Forms — the commissioner's controls on felt. */
+.sh-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  max-width: 42rem;
+}
+.sh-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 7rem;
+}
+.sh-form__label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--sh-cream);
+  opacity: 0.85;
+}
+.sh-form__field input,
+.sh-form__field select {
+  background: var(--sh-felt-700);
+  color: var(--sh-cream);
+  border: 1px solid var(--sh-felt-500);
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  font-family: var(--sh-font-ui);
+  font-size: 0.95rem;
+}
+.sh-form__field input:focus,
+.sh-form__field select:focus {
+  outline: 2px solid var(--sh-felt-500);
+  outline-offset: 1px;
+}
+.sh-form__row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.sh-form__fieldset {
+  border: 1px solid var(--sh-felt-500);
+  border-radius: 8px;
+  padding: 0.75rem 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.sh-form__fieldset legend {
+  font-family: var(--sh-font-ui);
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sh-cream);
+  opacity: 0.72;
+  padding: 0 0.4rem;
+}
+.sh-form__error {
+  margin: 0;
+  color: var(--sh-blood);
+  font-size: 0.85rem;
+}
+.sh-form__sum {
+  margin: 0;
+  font-family: var(--sh-font-mono);
+  font-size: 0.9rem;
+  color: var(--sh-cream);
+  opacity: 0.85;
+}
+.sh-form__sum--off {
+  color: var(--sh-blood);
+  opacity: 1;
+}
+
+/* League detail — the pot, the seat, the books. */
+.sh-league__tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0.5rem 0 1.25rem;
+  border-bottom: 1px solid var(--sh-felt-500);
+}
+.sh-league__tab {
+  color: var(--sh-cream);
+  text-decoration: none;
+  font-size: 0.95rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 6px 6px 0 0;
+  border-bottom: 2px solid transparent;
+}
+.sh-league__tab:hover {
+  background: var(--sh-felt-700);
+}
+.sh-league__tab--on {
+  border-bottom-color: var(--sh-felt-500);
+  background: var(--sh-felt-700);
+}
+.sh-league__facts {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  margin: 0;
+}
+.sh-league__facts dt {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sh-cream);
+  opacity: 0.66;
+}
+.sh-league__facts dd {
+  margin: 0.15rem 0 0;
+  font-size: 1rem;
+}
+.sh-league__actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.sh-league__note {
+  margin: 0.5rem 0 0;
+  color: var(--sh-cream);
+}
+.sh-league__pool-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0.75rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--sh-felt-500);
+  font-family: var(--sh-font-ui);
+}
+.sh-league__books-title {
+  margin: 0;
+  font-family: var(--sh-font-display);
+  font-size: 1.05rem;
+}
+
+/* The demo checkout — labelled simulated, dressed like a receipt. */
+.sh-checkout {
+  border: 1px solid var(--sh-felt-500);
+}
+.sh-checkout__label {
+  margin: 0 0 0.9rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--sh-cream);
+  opacity: 0.85;
+}
