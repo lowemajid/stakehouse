@@ -12,6 +12,10 @@ export * from './money';
 export { hash32, mulberry32, standardNormal, type Rng } from './rng';
 export * from './scoring';
 export * from './simulation';
+export * from './distribution';
+export * from './schedule';
+export * from './season';
+export * from './standings';
 // Position is defined identically in draft.ts and scoring.ts (the two slices
 // landed concurrently); the explicit re-export resolves the star-export
 // ambiguity at the package boundary.

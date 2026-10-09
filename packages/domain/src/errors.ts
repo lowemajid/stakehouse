@@ -20,7 +20,12 @@ export type DomainErrorCode =
   | 'invalid-stat-line'
   | 'unknown-scoring-band'
   | 'invalid-lineup'
-  | 'invalid-matchup';
+  | 'invalid-matchup'
+  | 'invalid-schedule'
+  | 'invalid-week-result'
+  | 'invalid-bracket'
+  | 'empty-pool'
+  | 'invalid-recipients';
 
 export class DomainError extends Error {
   readonly code: DomainErrorCode;
