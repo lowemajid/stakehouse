@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { Panel } from './Panel';
+import { cleanup } from '@testing-library/react';
+
+afterEach(cleanup);
 
 describe('Panel', () => {
   it('renders children inside a card panel by default', () => {

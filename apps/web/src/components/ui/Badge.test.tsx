@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { Badge } from './Badge';
+import { cleanup } from '@testing-library/react';
+
+afterEach(cleanup);
 
 describe('Badge', () => {
   it('renders its label with the neutral tone by default', () => {

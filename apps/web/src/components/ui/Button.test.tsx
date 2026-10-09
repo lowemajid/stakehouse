@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Button } from './Button';
+import { cleanup } from '@testing-library/react';
+
+afterEach(cleanup);
 
 describe('Button', () => {
   it('renders its label as a button', () => {
