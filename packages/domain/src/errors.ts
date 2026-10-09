@@ -15,7 +15,12 @@ export type DomainErrorCode =
   | 'invalid-draft-state'
   | 'invalid-pick-number'
   | 'unknown-player'
-  | 'no-autopick-available';
+  | 'no-autopick-available'
+  | 'invalid-scoring-rules'
+  | 'invalid-stat-line'
+  | 'unknown-scoring-band'
+  | 'invalid-lineup'
+  | 'invalid-matchup';
 
 export class DomainError extends Error {
   readonly code: DomainErrorCode;
