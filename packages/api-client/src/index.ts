@@ -246,6 +246,8 @@ export interface StakehouseClient {
   listPlayers(params?: { q?: string; pos?: string }): Promise<PlayerCardView[]>;
   /** Commissioner: simulate the next regular-season week. */
   simulateNextWeek(leagueId: string): Promise<{ week: number; seasonComplete: boolean }>;
+  /** Subscribe to the live draft stream (SSE) against the client's own origin. */
+  openDraftStream(leagueId: string, handlers: DraftStreamHandlers): DraftStream;
 }
 
 export function createClient(options: ClientOptions = {}): StakehouseClient {
@@ -416,6 +418,11 @@ export function createClient(options: ClientOptions = {}): StakehouseClient {
     async simulateNextWeek(leagueId: string): Promise<{ week: number; seasonComplete: boolean }> {
       const response = await request(`/api/leagues/${leagueId}/simulate`, { method: 'POST' });
       return parseBody(response, z.object({ week: z.number().int(), seasonComplete: z.boolean() }));
+    },
+
+    openDraftStream(leagueId: string, handlers: DraftStreamHandlers): DraftStream {
+      // The stream rides the client's own origin — same cookies, same base.
+      return openDraftStream({ baseUrl, leagueId, fetchImpl }, handlers);
     },
   };
 }

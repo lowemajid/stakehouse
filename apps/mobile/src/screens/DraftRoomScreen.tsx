@@ -1,18 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors } from '@stakehouse/theme';
+import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { colors, fontFamilies } from '@stakehouse/theme';
 import type { DraftView, PlayerCardView } from '@stakehouse/api-client';
-import { apiErrorMessage } from '../lib/apiErrors';
 import { deriveManagerId } from '../lib/ledgerLogic';
 import { BOARD_PAGE, filterBoard, type PositionFilter } from '../lib/draft/boardFilter';
+import { formatCountdown, readClock } from '../lib/draft/draftClock';
 import { pickRejectionMessage } from '../lib/draft/pickMessages';
 import { addToQueue, moveInQueue, removeFromQueue } from '../lib/draft/queueLogic';
+import { useDraftFeed } from '../lib/useDraftFeed';
+import { useNow } from '../lib/useNow';
 import { useApi } from '../state/apiContext';
 import { Button, ErrorBox, Input, Loading, Screen, styles } from '../ui/primitives';
-
-type LoadState =
-  { phase: 'loading' } | { phase: 'error'; message: string } | { phase: 'ready'; view: DraftView };
 
 const POSITION_CHIPS: PositionFilter[] = ['ALL', 'QB', 'RB', 'WR', 'TE', 'K', 'DEF'];
 
@@ -24,10 +23,10 @@ const STATUS_LABEL: Record<DraftView['status'], string> = {
 
 /**
  * The draft room (spec §Draft room states). The server owns the draft: this
- * screen renders its draftView, posts intents (pick, queue, autopick,
- * fast-forward), and never computes league state locally. The live stream and
- * ticking clock arrive with the feed slice; until then every action refreshes
- * from the server's response.
+ * screen renders the feed's draftView, posts intents (pick, queue, autopick,
+ * fast-forward), and never computes league state locally. Live truth rides
+ * SSE with a polling fallback; the clock resyncs from the server deadline on
+ * foreground, reload, and every server event.
  */
 export function DraftRoomScreen({
   leagueId,
@@ -37,8 +36,8 @@ export function DraftRoomScreen({
   onBack(): void;
 }): ReactElement {
   const { client, user } = useApi();
-  const [state, setState] = useState<LoadState>({ phase: 'loading' });
   const [players, setPlayers] = useState<PlayerCardView[]>([]);
+  const [playersFailed, setPlayersFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [queue, setQueue] = useState<string[]>([]);
@@ -49,26 +48,28 @@ export function DraftRoomScreen({
   const [confirmingFastForward, setConfirmingFastForward] = useState(false);
 
   const myManagerId = useMemo(() => (user ? deriveManagerId(user.email) : null), [user]);
+  const nameById = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
 
-  const load = useCallback(async (): Promise<void> => {
-    setState({ phase: 'loading' });
-    try {
-      const [draftView, universe] = await Promise.all([
-        client.getDraft(leagueId),
-        client.listPlayers(),
-      ]);
-      setPlayers(universe);
-      setState({ phase: 'ready', view: draftView });
-    } catch (caught) {
-      setState({ phase: 'error', message: apiErrorMessage(caught) });
-    }
-  }, [client, leagueId]);
+  const feed = useDraftFeed({ client, leagueId, myManagerId, nameById });
+  const view = feed.view;
+  const now = useNow(250);
 
+  const loadPlayers = useCallback((): void => {
+    setPlayersFailed(false);
+    void (async () => {
+      try {
+        setPlayers(await client.listPlayers());
+      } catch {
+        setPlayersFailed(true);
+      }
+    })();
+  }, [client]);
+
+  // The player universe names the board and the toasts; the draft itself
+  // rides the feed.
   useEffect(() => {
-    void load();
-  }, [load]);
-
-  const view = state.phase === 'ready' ? state.view : null;
+    loadPlayers();
+  }, [loadPlayers]);
 
   // Server queue is truth; local edits ride ahead of the PUT and yield to the
   // next server view until touched again.
@@ -79,8 +80,6 @@ export function DraftRoomScreen({
   useEffect(() => {
     if (!queueDirty) setQueue(serverQueue);
   }, [queueDirty, serverQueue]);
-
-  const nameById = useMemo(() => new Map(players.map((player) => [player.id, player])), [players]);
 
   async function run(action: () => Promise<void>): Promise<void> {
     setActionError(null);
@@ -97,21 +96,21 @@ export function DraftRoomScreen({
   function pickPlayer(playerId: string): void {
     void run(async () => {
       const result = await client.postPick(leagueId, playerId);
-      setState({ phase: 'ready', view: result.draft });
+      feed.applyView(result.draft);
     });
   }
 
   function startDraft(): void {
     void run(async () => {
       const next = await client.startDraft(leagueId);
-      setState({ phase: 'ready', view: next });
+      feed.applyView(next);
     });
   }
 
   function resolveAutopick(): void {
     void run(async () => {
       const result = await client.postAutopick(leagueId);
-      setState({ phase: 'ready', view: result.draft });
+      feed.applyView(result.draft);
     });
   }
 
@@ -119,7 +118,7 @@ export function DraftRoomScreen({
     setConfirmingFastForward(false);
     void run(async () => {
       const result = await client.postFastForward(leagueId);
-      setState({ phase: 'ready', view: result.draft });
+      feed.applyView(result.draft);
     });
   }
 
@@ -142,14 +141,24 @@ export function DraftRoomScreen({
         </Text>
       </View>
 
-      {state.phase === 'loading' ? <Loading label="Setting the board…" /> : null}
-      {state.phase === 'error' ? (
-        <ErrorBox message={state.message} onRetry={() => void load()} />
-      ) : null}
-
-      {view ? (
+      {view === null ? (
+        feed.loadFailed ? (
+          <ErrorBox
+            message="The draft board could not be read."
+            onRetry={() => void feed.resync()}
+          />
+        ) : (
+          <Loading label="Setting the board…" />
+        )
+      ) : (
         <ScrollView contentContainerStyle={local.body}>
+          {feed.status === 'polling' ? (
+            <Text style={local.fallbackChip}>Live updates lost — polling every 5s</Text>
+          ) : null}
           {actionError ? <ErrorBox message={actionError} /> : null}
+          {playersFailed ? (
+            <ErrorBox message="Player names could not be loaded." onRetry={loadPlayers} />
+          ) : null}
 
           {view.status === 'pending' ? (
             <LobbyCard view={view} myManagerId={myManagerId} busy={busy} onStart={startDraft} />
@@ -157,7 +166,7 @@ export function DraftRoomScreen({
 
           {view.status === 'live' ? (
             <>
-              <ClockCard view={view} myManagerId={myManagerId} />
+              <ClockCard view={view} myManagerId={myManagerId} now={now} skewMs={feed.skewMs} />
               <SeatListCard view={view} myManagerId={myManagerId} />
               {myManagerId ? (
                 <QueueCard
@@ -212,7 +221,7 @@ export function DraftRoomScreen({
 
           {view.status === 'complete' ? <RecapCard view={view} nameById={nameById} /> : null}
         </ScrollView>
-      ) : null}
+      )}
 
       <Modal
         visible={confirmingFastForward}
@@ -238,6 +247,21 @@ export function DraftRoomScreen({
           </View>
         </View>
       </Modal>
+
+      {feed.toasts.length > 0 ? (
+        <View style={local.toastStack} pointerEvents="box-none">
+          {feed.toasts.map((toast) => (
+            <Pressable
+              key={toast.id}
+              onPress={() => feed.dismissToast(toast.id)}
+              style={[local.toastCard, toast.kind === 'autopick' && local.toastAutopick]}
+            >
+              <Text style={[styles.lede, local.toastTitle]}>{toast.title}</Text>
+              <Text style={styles.lede}>{toast.body}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
     </Screen>
   );
 }
@@ -278,28 +302,63 @@ function LobbyCard({
   );
 }
 
-/** Who is on the clock. The live countdown rides the feed slice. */
+/** Who is on the clock — the countdown is derived from the server deadline
+ * (skew-corrected) on every tick; nothing accumulates locally. */
 function ClockCard({
   view,
   myManagerId,
+  now,
+  skewMs,
 }: {
   view: DraftView;
   myManagerId: string | null;
+  now: number;
+  skewMs: number;
 }): ReactElement {
   const onClock = view.clock.managerId;
   const seat = view.seats.find((candidate) => candidate.id === onClock);
   const mine = onClock !== null && onClock === myManagerId;
+  const deadline = view.clock.deadline;
+  const reading = deadline !== null ? readClock(deadline, now + skewMs) : null;
+  const underTen = reading !== null && reading.remainingMs <= 10_000;
   return (
     <View style={[styles.card, mine && local.clockMine]}>
       <Text style={styles.cardTitle}>
         {mine ? 'YOUR PICK' : 'ON THE CLOCK'} — pick {view.clock.overall ?? '—'}
       </Text>
+      {reading !== null ? (
+        <Text style={[local.clockDigits, underTen && local.clockUrgent]}>
+          <Pulse active={mine && underTen}>{formatCountdown(reading.remainingMs)}</Pulse>
+        </Text>
+      ) : (
+        <Text style={styles.lede}>Waiting for the clock…</Text>
+      )}
       <Text style={styles.lede}>
         {seat ? seat.displayName : 'Waiting for the server…'}
         {seat?.isAi && !mine ? ' — thinking…' : mine ? ' — the board is yours.' : ''}
       </Text>
     </View>
   );
+}
+
+/** Pulses the countdown while my clock runs under ten seconds. */
+function Pulse({ active, children }: { active: boolean; children: string }): ReactElement {
+  const opacity = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!active) {
+      opacity.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.35, duration: 550, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 550, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [active, opacity]);
+  return <Animated.Text style={{ opacity }}>{children}</Animated.Text>;
 }
 
 /** Seat strip with picks-drafted counts and the AI thinking marker. */
@@ -596,6 +655,44 @@ const local = StyleSheet.create({
   },
   clockMine: {
     borderColor: colors.brass,
+  },
+  clockDigits: {
+    color: colors.cream,
+    fontFamily: fontFamilies.mono,
+    fontSize: 40,
+    marginTop: 4,
+  },
+  clockUrgent: {
+    color: colors.blood,
+  },
+  fallbackChip: {
+    color: colors.brass,
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  toastStack: {
+    bottom: 18,
+    flexDirection: 'column',
+    gap: 8,
+    left: 16,
+    position: 'absolute',
+    right: 16,
+    zIndex: 10,
+  },
+  toastCard: {
+    backgroundColor: colors.felt700,
+    borderColor: colors.felt500,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 2,
+    padding: 12,
+  },
+  toastAutopick: {
+    borderColor: colors.brass,
+  },
+  toastTitle: {
+    color: colors.brass,
+    fontWeight: '600',
   },
   onClockText: {
     color: colors.brass,

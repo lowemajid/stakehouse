@@ -32,3 +32,8 @@ export function formatCountdown(remainingMs: number): string {
 export function isAutopickDue(deadline: number | null, nowMs: number, graceMs: number): boolean {
   return deadline !== null && nowMs > deadline + graceMs;
 }
+
+/** Clock skew: how far the server's `at` runs ahead of the local read. */
+export function clockSkew(serverAtMs: number, receivedAtMs: number): number {
+  return serverAtMs - receivedAtMs;
+}

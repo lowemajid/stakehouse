@@ -41,9 +41,7 @@ export function draftView(overrides: Partial<DraftView> = {}): DraftView {
   return {
     status: 'live',
     order: ['mgr-ava', 'mgr-marge'],
-    picks: [
-      { overall: 1, managerId: 'mgr-ava', playerId: 'pl-1', at: '2026-10-09T12:00:00.000Z' },
-    ],
+    picks: [{ overall: 1, managerId: 'mgr-ava', playerId: 'pl-1', at: '2026-10-09T12:00:00.000Z' }],
     pickSeconds: 30,
     board: [
       { playerId: 'pl-2', position: 'RB', name: 'Silas Brummell', projectedPoints: 14.2 },
@@ -110,7 +108,12 @@ describe('draft client methods', () => {
 
   it('postAutopick resolves the expired clock', async () => {
     const view = draftView();
-    const pick = { overall: 2, managerId: 'mgr-marge', playerId: 'pl-2', at: '2026-10-09T12:00:30Z' };
+    const pick = {
+      overall: 2,
+      managerId: 'mgr-marge',
+      playerId: 'pl-2',
+      at: '2026-10-09T12:00:30Z',
+    };
     const { client, calls } = clientWithResponses([ok({ autopicked: pick, draft: view })]);
     const result = await client.postAutopick('lg-1');
     expect(calls[0]?.url).toBe('/api/leagues/lg-1/draft/autopick');
@@ -118,7 +121,10 @@ describe('draft client methods', () => {
   });
 
   it('postFastForward cascades to the recap', async () => {
-    const view = draftView({ status: 'complete', clock: { overall: null, managerId: null, deadline: null } });
+    const view = draftView({
+      status: 'complete',
+      clock: { overall: null, managerId: null, deadline: null },
+    });
     const { client, calls } = clientWithResponses([ok({ fastForwarded: 34, draft: view })]);
     const result = await client.postFastForward('lg-1');
     expect(calls[0]?.url).toBe('/api/leagues/lg-1/draft/fast-forward');
@@ -129,9 +135,7 @@ describe('draft client methods', () => {
   it('listPlayers reads the universe and strips to card fields', async () => {
     const { client } = clientWithResponses([
       ok({
-        players: [
-          { id: 'pl-1', name: 'Dov Amado', position: 'QB', projection: {}, variance: 0.3 },
-        ],
+        players: [{ id: 'pl-1', name: 'Dov Amado', position: 'QB', projection: {}, variance: 0.3 }],
         total: 1,
       }),
     ]);
@@ -148,7 +152,10 @@ describe('draft client methods', () => {
 
   it('surfaces server error envelopes as ApiError with the server code', async () => {
     const { client } = clientWithResponses([
-      { status: 409, body: { error: { code: 'clock-live', message: 'the pick clock has not expired yet' } } },
+      {
+        status: 409,
+        body: { error: { code: 'clock-live', message: 'the pick clock has not expired yet' } },
+      },
     ]);
     await expect(client.postAutopick('lg-1')).rejects.toBeInstanceOf(ApiError);
   });
@@ -178,10 +185,13 @@ describe('openDraftStream', () => {
     const view = draftView();
     const events: string[] = [];
     const stream = openDraftStream(
-      { leagueId: 'lg-1', fetchImpl: sseFetch([
-        `event: draft\ndata: ${JSON.stringify({ draft: view })}\n\n`,
-        'event: clock\ndata: {"at": 1791230400000}\n\n',
-      ]) },
+      {
+        leagueId: 'lg-1',
+        fetchImpl: sseFetch([
+          `event: draft\ndata: ${JSON.stringify({ draft: view })}\n\n`,
+          'event: clock\ndata: {"at": 1791230400000}\n\n',
+        ]),
+      },
       {
         onDraft: (draft) => events.push(`draft:${draft.clock.managerId}`),
         onClock: (at) => events.push(`clock:${at}`),
@@ -200,10 +210,13 @@ describe('openDraftStream', () => {
     const half = Math.floor(payload.length / 2);
     const events: string[] = [];
     openDraftStream(
-      { leagueId: 'lg-1', fetchImpl: sseFetch([
-        `event: draft\ndata: ${payload.slice(0, half)}`,
-        `${payload.slice(half)}\n\n`,
-      ]) },
+      {
+        leagueId: 'lg-1',
+        fetchImpl: sseFetch([
+          `event: draft\ndata: ${payload.slice(0, half)}`,
+          `${payload.slice(half)}\n\n`,
+        ]),
+      },
       {
         onDraft: (draft) => events.push(`draft:${draft.status}`),
         onClock: () => undefined,
@@ -216,7 +229,10 @@ describe('openDraftStream', () => {
   it('reports a contract break on a malformed draft payload', async () => {
     const events: string[] = [];
     openDraftStream(
-      { leagueId: 'lg-1', fetchImpl: sseFetch(['event: draft\ndata: {"draft": {"status": "bogus"}}\n\n']) },
+      {
+        leagueId: 'lg-1',
+        fetchImpl: sseFetch(['event: draft\ndata: {"draft": {"status": "bogus"}}\n\n']),
+      },
       {
         onDraft: () => events.push('draft'),
         onClock: () => undefined,
@@ -243,13 +259,23 @@ describe('openDraftStream', () => {
     let captured: RequestInit | undefined;
     const fetchImpl = (async (url: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       captured = init;
-      return new Response(new ReadableStream<Uint8Array>({ start(c) { c.close(); } }), { status: 200 });
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(c) {
+            c.close();
+          },
+        }),
+        { status: 200 },
+      );
     }) as typeof fetch;
-    openDraftStream({ leagueId: 'lg-1', fetchImpl }, {
-      onDraft: () => undefined,
-      onClock: () => undefined,
-      onDown: () => undefined,
-    });
+    openDraftStream(
+      { leagueId: 'lg-1', fetchImpl },
+      {
+        onDraft: () => undefined,
+        onClock: () => undefined,
+        onDown: () => undefined,
+      },
+    );
     await vi.waitFor(() => expect(captured).toBeDefined());
     expect(captured?.credentials).toBe('include');
     expect((captured?.headers as Record<string, string>)['Accept']).toBe('text/event-stream');
