@@ -6,7 +6,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@stakehouse/api-client';
 import App from '../../App';
 import { makeFakeApi } from '../../test/api';
-import { draftViewFixture, liveAfterOnePick } from '../../test/draft';
+import {
+  DRAFT_SEAT_IDS,
+  FakeEventSource,
+  draftViewFixture,
+  installFakeEventSource,
+  liveAfterOnePick,
+} from '../../test/draft';
 
 afterEach(() => {
   cleanup();
@@ -16,6 +22,7 @@ afterEach(() => {
 });
 
 function renderDraft(path: string, api = makeFakeApi()) {
+  installFakeEventSource();
   window.localStorage.setItem(
     'sh.session',
     JSON.stringify({ displayName: 'Marge Kowalski', email: 'marge@example.com' }),
@@ -112,5 +119,93 @@ describe('DraftRoomPage — server-first room', () => {
     getDraft.mockResolvedValue({ draft: draftViewFixture(), you: 'mgr-marge' });
     await user.click(screen.getByRole('button', { name: /try again/i }));
     expect(await screen.findByText(/your pick/i)).toBeInTheDocument();
+  });
+});
+
+describe('DraftRoomPage — the live stream', () => {
+  it('an SSE draft event updates the board without a reload', async () => {
+    renderDraft('/leagues/lg-sandbox/draft');
+    expect(await screen.findByRole('button', { name: /draft dov amado/i })).toBeEnabled();
+    const source = FakeEventSource.instances[0]!;
+    source.emit('draft', { draft: liveAfterOnePick() });
+    // The picked player left the board; the AI seat is now on the clock.
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: /draft dov amado/i })).not.toBeInTheDocument(),
+    );
+    const where = screen.getByText(/is on the clock/i);
+    expect(where.textContent).toContain('Chester Royales');
+    expect(screen.getByText(/thinking…/i)).toBeInTheDocument();
+  });
+
+  it('the countdown shows time remaining and turns urgent inside ten seconds', async () => {
+    const api = makeFakeApi({
+      getDraft: vi.fn().mockResolvedValue({
+        draft: draftViewFixture({
+          clock: { overall: 1, managerId: DRAFT_SEAT_IDS[0], deadline: Date.now() + 8_000 },
+        }),
+        you: 'mgr-marge',
+      }),
+    });
+    renderDraft('/leagues/lg-sandbox/draft', api);
+    const clock = await screen.findByRole('timer');
+    await waitFor(() => expect(clock.textContent).toMatch(/0:0[0-8]/));
+    expect(clock).toHaveAttribute('data-urgent', 'true'); // 8s ≤ 10s
+  });
+
+  it('a relaxed clock is not urgent', async () => {
+    const api = makeFakeApi({
+      getDraft: vi.fn().mockResolvedValue({
+        draft: draftViewFixture({
+          clock: { overall: 1, managerId: DRAFT_SEAT_IDS[0], deadline: Date.now() + 45_000 },
+        }),
+        you: 'mgr-marge',
+      }),
+    });
+    renderDraft('/leagues/lg-sandbox/draft', api);
+    const clock = await screen.findByRole('timer');
+    await waitFor(() => expect(clock.textContent).toMatch(/0:4[0-9]/));
+    expect(clock).toHaveAttribute('data-urgent', 'false');
+  });
+
+  it('an expired AI clock fires the room autopick and toasts who landed', async () => {
+    const api = makeFakeApi({
+      getDraft: vi.fn().mockResolvedValue({
+        draft: draftViewFixture({
+          clock: { overall: 1, managerId: DRAFT_SEAT_IDS[1], deadline: Date.now() - 5 },
+        }),
+        you: 'mgr-marge',
+      }),
+      draftAutopick: vi.fn().mockResolvedValue({
+        autopicked: {
+          overall: 1,
+          managerId: DRAFT_SEAT_IDS[1],
+          playerId: 'p-1',
+          at: '2026-10-09T12:00:00Z',
+        },
+        draft: liveAfterOnePick(),
+      }),
+    });
+    renderDraft('/leagues/lg-sandbox/draft', api);
+    await waitFor(() => expect(api.draftAutopick).toHaveBeenCalledWith('lg-sandbox'));
+    expect(
+      await screen.findByText(/clock expired — chester royales autopicked dov amado/i),
+    ).toBeInTheDocument();
+  });
+
+  it('my own expired clock does not autopick while my preference is off', async () => {
+    window.localStorage.setItem('sh-autopick:mgr-marge', 'off');
+    const api = makeFakeApi({
+      getDraft: vi.fn().mockResolvedValue({
+        draft: draftViewFixture({
+          clock: { overall: 1, managerId: DRAFT_SEAT_IDS[0], deadline: Date.now() - 5 },
+        }),
+        you: 'mgr-marge',
+      }),
+      draftAutopick: vi.fn(),
+    });
+    renderDraft('/leagues/lg-sandbox/draft', api);
+    await screen.findByRole('button', { name: /draft dov amado/i });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(api.draftAutopick).not.toHaveBeenCalled();
   });
 });

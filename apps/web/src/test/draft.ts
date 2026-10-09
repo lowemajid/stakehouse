@@ -39,13 +39,15 @@ export function draftViewFixture(overrides: Partial<DraftView> = {}): DraftView 
   };
 }
 
-/** A view with one pick on the books and the second seat on the clock. */
+/** A view with one pick on the books and the second seat on the clock. The
+ * deadline is a live one — a real mid-draft room always has time remaining —
+ * so expiry tests build their own views with explicit past deadlines. */
 export function liveAfterOnePick(): DraftView {
   return draftViewFixture({
     picks: [
       { overall: 1, managerId: DRAFT_SEAT_IDS[0], playerId: 'p-1', at: '2026-10-09T12:01:00Z' },
     ],
-    clock: { overall: 2, managerId: DRAFT_SEAT_IDS[1], deadline: 1_791_230_430_000 },
+    clock: { overall: 2, managerId: DRAFT_SEAT_IDS[1], deadline: Date.now() + 30_000 },
     board: draftViewFixture().board.slice(1),
     rosters: {
       [DRAFT_SEAT_IDS[0]]: [{ playerId: 'p-1', position: 'QB', slot: 'QB' }],
@@ -91,4 +93,14 @@ export class FakeEventSource {
     FakeEventSource.instances = [];
     return (url: string) => new FakeEventSource(url);
   }
+}
+
+/**
+ * Installs the fake where the real browser keeps EventSource — on the window
+ * — so pages that subscribe with the default factory capture into
+ * `FakeEventSource.instances`. Reset the instance list each call.
+ */
+export function installFakeEventSource(): void {
+  FakeEventSource.instances = [];
+  (window as unknown as { EventSource?: unknown }).EventSource = FakeEventSource;
 }

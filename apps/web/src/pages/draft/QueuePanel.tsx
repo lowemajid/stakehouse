@@ -6,27 +6,27 @@ import { Badge, Button, Panel } from '../../components/ui';
  * The personal queue: an ordered wishlist the server's deadline autopick
  * reads top-first. Saving is an intent PUT — the server echoes what it
  * stored, and that echo is the panel's truth. The autopick toggle is a
- * client-side preference (localStorage): it decides whether this tab fires
- * the room's expiry autopick while your own seat is on the clock. AI seats
- * always resolve through the engine's autopick — they have no hands.
+ * client-side preference (localStorage) owned by the room page: it decides
+ * whether this tab fires the room's expiry autopick while your own seat is
+ * on the clock. AI seats always resolve through the engine's autopick —
+ * they have no hands.
  */
 export function QueuePanel({
   draft,
   mySeatId,
+  autopickOn,
+  onAutopickChange,
   onSave,
 }: {
   draft: DraftView;
   mySeatId: string | null;
+  autopickOn: boolean;
+  onAutopickChange: (next: boolean) => void;
   onSave: (queue: string[]) => Promise<void>;
 }) {
   const serverQueue = mySeatId ? (draft.queues[mySeatId]?.queue ?? []) : [];
   const [queue, setQueue] = useState<string[]>(serverQueue);
   const [saving, setSaving] = useState(false);
-  const [autopickOn, setAutopickOn] = useState<boolean>(() => {
-    if (!mySeatId) return true;
-    const stored = window.localStorage.getItem(`sh-autopick:${mySeatId}`);
-    return stored !== 'off';
-  });
 
   // Reseed when the seat or the server's queue changes from outside — the
   // joined key keeps the effect from firing on every parent render.
@@ -61,13 +61,7 @@ export function QueuePanel({
         <input
           type="checkbox"
           checked={autopickOn}
-          onChange={(event) => {
-            setAutopickOn(event.target.checked);
-            window.localStorage.setItem(
-              `sh-autopick:${mySeatId}`,
-              event.target.checked ? 'on' : 'off',
-            );
-          }}
+          onChange={(event) => onAutopickChange(event.target.checked)}
         />
         <Badge tone={autopickOn ? 'money' : 'neutral'}>autopick {autopickOn ? 'ON' : 'OFF'}</Badge>
       </label>

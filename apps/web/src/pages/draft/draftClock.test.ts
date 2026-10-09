@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { pickInRound, roundOf, secondsRemaining, serverOffsetMs } from './draftClock';
+import {
+  pickInRound,
+  roundOf,
+  secondsRemaining,
+  serverOffsetMs,
+  shouldAutopick,
+} from './draftClock';
 
 describe('draft clock math', () => {
   it('derives the server offset from a heartbeat and its arrival time', () => {
@@ -39,5 +45,45 @@ describe('draft clock math', () => {
         expect((round - 1) * seats + inRound).toBe(overall);
       }
     }
+  });
+});
+
+describe('shouldAutopick — the expiry decision', () => {
+  const base = {
+    status: 'live' as const,
+    deadline: 1_791_230_430_000 as number | null,
+    secondsLeft: 0,
+    onClockOverall: 7 as number | null,
+    alreadyFiredFor: null as number | null,
+    mySeatId: 'mgr-marge' as string | null,
+    onClockManagerId: 'mgr-ai-1' as string | null,
+    autopickOn: true,
+  };
+
+  it('fires for an AI seat whose clock has expired', () => {
+    expect(shouldAutopick(base)).toBe(true);
+  });
+
+  it('never fires while time remains, the clock is unset, or the room is not live', () => {
+    expect(shouldAutopick({ ...base, secondsLeft: 0.25 })).toBe(false);
+    expect(shouldAutopick({ ...base, deadline: null })).toBe(false);
+    expect(shouldAutopick({ ...base, status: 'pending' })).toBe(false);
+    expect(shouldAutopick({ ...base, status: 'complete' })).toBe(false);
+  });
+
+  it('fires once per pick — the same pick never double-fires', () => {
+    expect(shouldAutopick({ ...base, alreadyFiredFor: 7 })).toBe(false);
+    expect(shouldAutopick({ ...base, alreadyFiredFor: 6 })).toBe(true);
+  });
+
+  it('your seat fires only with your autopick preference on', () => {
+    expect(shouldAutopick({ ...base, onClockManagerId: 'mgr-marge', autopickOn: true })).toBe(true);
+    expect(shouldAutopick({ ...base, onClockManagerId: 'mgr-marge', autopickOn: false })).toBe(
+      false,
+    );
+  });
+
+  it('a spectator tab keeps the room moving regardless of any preference', () => {
+    expect(shouldAutopick({ ...base, mySeatId: null })).toBe(true);
   });
 });
