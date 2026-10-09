@@ -1,4 +1,4 @@
-import { onTheClock, scoreLine } from '@stakehouse/domain';
+import { onTheClock, projectedPoints } from '@stakehouse/domain';
 import type {
   DraftState,
   PlayerCard,
@@ -60,7 +60,7 @@ export function rankedBoard(players: readonly PlayerCard[], scoring: ScoringRule
       playerId: player.id,
       position: player.position,
       name: player.name,
-      projectedPoints: scoreLine(player.projection, scoring),
+      projectedPoints: projectedPoints(player.projection, scoring),
     }))
     .sort(
       (a, b) =>

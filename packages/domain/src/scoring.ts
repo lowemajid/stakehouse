@@ -2,9 +2,28 @@ import { DomainError } from './errors';
 import type { ScoringRules } from './leagueConfig';
 
 /**
- * The player universe's position vocabulary. The lineup-slot vocabulary
- * (which adds FLEX) lives in simulation.ts.
+ * A player's expected counting stats for one week — float means, NOT a drawn
+ * stat line. The board ranks by `projectedPoints`, which rounds to whole
+ * counting stats before scoring; scoring itself stays integer-exact.
  */
+export interface Projection {
+  passYards: number;
+  passTd: number;
+  interceptions: number;
+  rushYards: number;
+  rushTd: number;
+  receptions: number;
+  fumblesLost: number;
+  fgMade: Record<string, number>; // expected made field goals per distance band
+  extraPointsMade: number;
+  sacks: number;
+  takeaways: number;
+  defensiveTd: number;
+  pointsAllowed: number;
+}
+
+/** The player universe's position vocabulary. The lineup-slot vocabulary
+ * (which adds FLEX) lives in simulation.ts. */
 export type Position = 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'DEF';
 
 /**
@@ -135,6 +154,35 @@ export function scoreLineScaled(stats: StatLine, rules: ScoringRules): number {
 /** Points scored by one player's stat line under the league's rules. */
 export function scoreLine(stats: StatLine, rules: ScoringRules): number {
   return scoreLineScaled(stats, rules) / POINTS_SCALE;
+}
+
+/**
+ * Board estimate: a projection's expected points under these rules. A
+ * projection is a vector of float means, not a drawn line, so each counter
+ * rounds to the nearest whole stat before the strict scorer runs — scoring
+ * itself stays integer-exact and the ranking stays deterministic.
+ */
+export function projectedPoints(projection: Projection, rules: ScoringRules): number {
+  const rounded: StatLine = {
+    ...projection,
+    fgMade: Object.fromEntries(
+      Object.entries(projection.fgMade).map(([band, made]) => {
+        assertCount(made, `fgMade.${band}`);
+        return [band, Math.round(made)];
+      }),
+    ),
+  };
+  for (const field of COUNTER_FIELDS) {
+    const mean = rounded[field];
+    if (!Number.isFinite(mean) || mean < 0) {
+      throw new DomainError(
+        'invalid-stat-line',
+        `stat ${field} must be a non-negative number, got ${mean}`,
+      );
+    }
+    rounded[field] = Math.round(mean);
+  }
+  return scoreLine(rounded, rules);
 }
 
 /**

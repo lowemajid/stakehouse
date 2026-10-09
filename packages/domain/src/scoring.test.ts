@@ -2,8 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { DomainError } from './errors';
 import type { DomainErrorCode } from './errors';
 import type { ScoringRules } from './leagueConfig';
-import { pointsAllowedBonus, scoreLine, scoreLineScaled, zeroStatLine } from './scoring';
-import type { StatLine } from './scoring';
+import {
+  pointsAllowedBonus,
+  projectedPoints,
+  scoreLine,
+  scoreLineScaled,
+  zeroStatLine,
+} from './scoring';
+import type { Projection, StatLine } from './scoring';
 
 const rules: ScoringRules = {
   passYards: 0.04,
@@ -212,5 +218,36 @@ describe('stat line validation', () => {
   it('rejects field goals from bands the rules do not define', () => {
     const line: StatLine = { ...zeroStatLine(), fgMade: { '70+': 1 } };
     expectDomainError(() => scoreLine(line, rules), 'unknown-scoring-band');
+  });
+});
+
+describe('projectedPoints', () => {
+  it('scores a fractional projection as its rounded stat line', () => {
+    const projection: Projection = {
+      ...zeroStatLine(),
+      passYards: 220.79,
+      passTd: 1.26,
+      rushYards: 5.77,
+      receptions: 3.2,
+    };
+    const rounded: StatLine = {
+      ...zeroStatLine(),
+      passYards: 221,
+      passTd: 1,
+      rushYards: 6,
+      receptions: 3,
+    };
+    expect(projectedPoints(projection, rules)).toBe(scoreLine(rounded, rules));
+  });
+
+  it('rejects negative or non-finite projection counters', () => {
+    expectDomainError(
+      () => projectedPoints({ ...zeroStatLine(), rushYards: -5 }, rules),
+      'invalid-stat-line',
+    );
+    expectDomainError(
+      () => projectedPoints({ ...zeroStatLine(), passYards: Number.NaN }, rules),
+      'invalid-stat-line',
+    );
   });
 });

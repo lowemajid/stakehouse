@@ -1,4 +1,12 @@
-import { cents, createDraft, leagueId, managerId, applyPick, startDraft } from '@stakehouse/domain';
+import {
+  cents,
+  createDraft,
+  leagueId,
+  managerId,
+  applyPick,
+  startDraft,
+  zeroStatLine,
+} from '@stakehouse/domain';
 import type {
   DraftState,
   LedgerEntry,
@@ -198,7 +206,14 @@ export function weekResult(week: number): WeekResult {
               name: 'Player p-1',
               position: 'QB',
               slot: 'QB',
-              stats: playerCard('p-1').projection,
+              stats: {
+                ...zeroStatLine(),
+                passYards: 250,
+                passTd: 2,
+                interceptions: 1,
+                rushYards: 10,
+                pointsAllowed: 24,
+              },
               points: 18.2,
             },
           ],

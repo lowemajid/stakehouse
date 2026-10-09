@@ -1,6 +1,7 @@
 import eslint from '@eslint/js';
 import prettier from 'eslint-config-prettier';
 import tseslint from 'typescript-eslint';
+import globalsMap from 'globals';
 
 export default tseslint.config(
   {
@@ -21,6 +22,12 @@ export default tseslint.config(
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
     },
+  },
+  // Node scripts (*.mjs) are linted by base recommended, which does not get
+  // typescript-eslint's no-undef opt-out for TS files — declare Node globals.
+  {
+    files: ['**/*.mjs'],
+    languageOptions: { globals: { ...globalsMap.node } },
   },
   // Floats-for-money is forbidden: the ledger orchestrates but never does its
   // own arithmetic. Every money operation goes through the integer-cent
