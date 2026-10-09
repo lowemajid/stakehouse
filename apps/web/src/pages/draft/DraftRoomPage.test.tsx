@@ -192,7 +192,10 @@ describe('DraftRoomPage — the live stream', () => {
     ).toBeInTheDocument();
   });
 
-  it('my own expired clock does not autopick while my preference is off', async () => {
+  it('my own expired clock fires the room autopick even with my preference off', async () => {
+    // The server has no timer; a tab must carry the expiry or the room freezes
+    // at 0:00 forever (single-tab room). The toggle is a preference — the
+    // server's resolveDeadline answers from the queue or best available.
     window.localStorage.setItem('sh-autopick:mgr-marge', 'off');
     const api = makeFakeApi({
       getDraft: vi.fn().mockResolvedValue({
@@ -201,12 +204,19 @@ describe('DraftRoomPage — the live stream', () => {
         }),
         you: 'mgr-marge',
       }),
-      draftAutopick: vi.fn(),
+      draftAutopick: vi.fn().mockResolvedValue({
+        autopicked: {
+          overall: 1,
+          managerId: DRAFT_SEAT_IDS[0],
+          playerId: 'p-1',
+          at: '2026-10-09T12:00:00Z',
+        },
+        draft: liveAfterOnePick(),
+      }),
     });
     renderDraft('/leagues/lg-sandbox/draft', api);
-    await screen.findByRole('button', { name: /draft dov amado/i });
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(api.draftAutopick).not.toHaveBeenCalled();
+    await waitFor(() => expect(api.draftAutopick).toHaveBeenCalledWith('lg-sandbox'));
+    expect(await screen.findByText(/clock expired —.*autopicked/i)).toBeInTheDocument();
   });
 });
 

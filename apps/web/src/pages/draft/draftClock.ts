@@ -27,9 +27,12 @@ export function pickInRound(overall: number, seats: number): number {
 
 /**
  * Whether this tab should fire the room's expiry autopick. Pure so the
- * decision is testable: AI seats always resolve (they have no hands of
- * their own); your seat fires only when your autopick preference is on; a
- * spectator tab keeps the room moving too.
+ * decision is testable: any live tab carries an expired clock — AI seats,
+ * spectators, and the seat's own tab alike. The clock is server-owned and
+ * the server has no timer; if the seat's own tab never fired (single-tab
+ * room, autopick off), the room would freeze at 0:00 forever. What lands
+ * is the server's call — the queue's top available player, else best
+ * available — and the toast explains it.
  */
 export function shouldAutopick(input: {
   status: 'pending' | 'live' | 'complete';
@@ -37,15 +40,9 @@ export function shouldAutopick(input: {
   secondsLeft: number;
   onClockOverall: number | null;
   alreadyFiredFor: number | null;
-  mySeatId: string | null;
-  onClockManagerId: string | null;
-  autopickOn: boolean;
 }): boolean {
   if (input.status !== 'live' || input.deadline === null) return false;
   if (input.onClockOverall === null || input.alreadyFiredFor === input.onClockOverall) return false;
   if (input.secondsLeft > 0) return false;
-  if (input.mySeatId !== null && input.onClockManagerId === input.mySeatId && !input.autopickOn) {
-    return false;
-  }
   return true;
 }

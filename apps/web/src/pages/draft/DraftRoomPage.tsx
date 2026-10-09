@@ -158,7 +158,7 @@ export function DraftRoomPage({ leagueId }: { leagueId: string }) {
     const evaluate = (): void => {
       const current = stateRef.current;
       if (current.kind !== 'ready') return;
-      const { draft, you } = current;
+      const { draft } = current;
       if (draft.clock.deadline === null) return;
       const secondsLeft = secondsRemaining(draft.clock.deadline, Date.now(), offsetRef.current);
       if (
@@ -168,9 +168,6 @@ export function DraftRoomPage({ leagueId }: { leagueId: string }) {
           secondsLeft,
           onClockOverall: draft.clock.overall,
           alreadyFiredFor: firedForOverallRef.current,
-          mySeatId: you,
-          onClockManagerId: draft.clock.managerId,
-          autopickOn: autopickRef.current,
         })
       ) {
         return;

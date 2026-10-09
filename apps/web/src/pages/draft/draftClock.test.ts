@@ -49,18 +49,17 @@ describe('draft clock math', () => {
 });
 
 describe('shouldAutopick — the expiry decision', () => {
+  // No seat fields: the decision is seat-agnostic. Any live tab fires an
+  // expired clock; the server's resolveDeadline decides what lands.
   const base = {
     status: 'live' as const,
     deadline: 1_791_230_430_000 as number | null,
     secondsLeft: 0,
     onClockOverall: 7 as number | null,
     alreadyFiredFor: null as number | null,
-    mySeatId: 'mgr-marge' as string | null,
-    onClockManagerId: 'mgr-ai-1' as string | null,
-    autopickOn: true,
   };
 
-  it('fires for an AI seat whose clock has expired', () => {
+  it('fires for any seat whose clock has expired — AI, spectator, or your own', () => {
     expect(shouldAutopick(base)).toBe(true);
   });
 
@@ -74,16 +73,5 @@ describe('shouldAutopick — the expiry decision', () => {
   it('fires once per pick — the same pick never double-fires', () => {
     expect(shouldAutopick({ ...base, alreadyFiredFor: 7 })).toBe(false);
     expect(shouldAutopick({ ...base, alreadyFiredFor: 6 })).toBe(true);
-  });
-
-  it('your seat fires only with your autopick preference on', () => {
-    expect(shouldAutopick({ ...base, onClockManagerId: 'mgr-marge', autopickOn: true })).toBe(true);
-    expect(shouldAutopick({ ...base, onClockManagerId: 'mgr-marge', autopickOn: false })).toBe(
-      false,
-    );
-  });
-
-  it('a spectator tab keeps the room moving regardless of any preference', () => {
-    expect(shouldAutopick({ ...base, mySeatId: null })).toBe(true);
   });
 });
