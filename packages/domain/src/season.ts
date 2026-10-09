@@ -94,6 +94,38 @@ function winningSeed(matchup: BracketMatchup, winner: ManagerId): number {
   return winner === matchup.home ? matchup.seeds[0]! : matchup.seeds[1]!;
 }
 
+/**
+ * The matchup a finished round produces: after both semifinals, the final
+ * pairs the winners with the better original seed hosting; after a final,
+ * the bracket is done. Pure — the bracket's shape falls out of the results.
+ */
+export function nextMatchup(
+  round: readonly BracketMatchup[],
+  results: readonly BracketResult[],
+  finalWeek: number,
+): BracketMatchup | null {
+  if (round.length === 1) return null;
+  if (round.length !== 2 || results.length !== 2) {
+    throw new DomainError(
+      'invalid-bracket',
+      `cannot advance a bracket round of ${round.length} matchups and ${results.length} results`,
+    );
+  }
+  const finalists = round
+    .map((matchup, i) => {
+      const winner = results[i]!.winner;
+      return { winner, seed: winningSeed(matchup, winner) };
+    })
+    .sort((a, b) => a.seed - b.seed);
+  return {
+    week: finalWeek,
+    home: finalists[0]!.winner,
+    away: finalists[1]!.winner,
+    label: 'final',
+    seeds: [finalists[0]!.seed, finalists[1]!.seed],
+  };
+}
+
 function toMatchup(bracket: BracketMatchup): SimMatchup {
   return { home: bracket.home, away: bracket.away };
 }
@@ -127,40 +159,23 @@ export function simulateSeason(league: SimLeague, schedule: Schedule): SeasonRes
   const bracket: BracketMatchup[] = [];
   const results: BracketResult[] = [];
 
+  // Every week — regular season and bracket rounds — iterates the same way:
+  // play the matchups, keep the WeekResult, record the winners. The bracket
+  // advances round by round until nextMatchup runs out.
   if (config.playoffTeams > 0) {
-    const firstRound = seedBracket(config, standings);
-    const firstRoundWeek = firstRound[0]!.week;
-    const firstRoundGames = playWeek(league, firstRound.map(toMatchup), firstRoundWeek);
-    weeks.push(firstRoundGames);
-    for (let i = 0; i < firstRound.length; i++) {
-      const matchup = firstRound[i]!;
-      const game = firstRoundGames.games[i]!;
-      bracket.push(matchup);
-      results.push({ matchup, winner: winnerOf(matchup, game) });
-    }
-
-    if (firstRound.length === 2) {
-      // 4-team bracket: the final pairs the semifinal winners, better seed hosting.
-      const finalists = firstRound
-        .map((matchup, i) => {
-          const winner = results[i]!.winner;
-          return { winner, seed: winningSeed(matchup, winner) };
-        })
-        .sort((a, b) => a.seed - b.seed);
-      const finalMatchup: BracketMatchup = {
-        week: config.regularSeasonWeeks,
-        home: finalists[0]!.winner,
-        away: finalists[1]!.winner,
-        label: 'final',
-        seeds: [finalists[0]!.seed, finalists[1]!.seed],
-      };
-      const finalGames = playWeek(league, [toMatchup(finalMatchup)], finalMatchup.week);
-      weeks.push(finalGames);
-      bracket.push(finalMatchup);
-      results.push({
-        matchup: finalMatchup,
-        winner: winnerOf(finalMatchup, finalGames.games[0]!),
-      });
+    let round = seedBracket(config, standings);
+    while (round.length > 0) {
+      const games = playWeek(league, round.map(toMatchup), round[0]!.week);
+      weeks.push(games);
+      const roundResults: BracketResult[] = [];
+      for (let i = 0; i < round.length; i++) {
+        const matchup = round[i]!;
+        bracket.push(matchup);
+        roundResults.push({ matchup, winner: winnerOf(matchup, games.games[i]!) });
+      }
+      results.push(...roundResults);
+      const next = nextMatchup(round, roundResults, config.regularSeasonWeeks);
+      round = next ? [next] : [];
     }
   }
 

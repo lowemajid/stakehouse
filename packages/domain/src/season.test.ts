@@ -6,8 +6,14 @@ import type { LeagueConfig, ScoringRules } from './leagueConfig';
 import { roundRobinSchedule } from './schedule';
 import type { Position, StatLine } from './scoring';
 import type { LineupSlot, PlayerCard, SimLeague, SlotPosition } from './simulation';
-import { playoffWeeks, seedBracket, seasonPayoutRecipients, simulateSeason } from './season';
-import type { BracketMatchup } from './season';
+import {
+  nextMatchup,
+  playoffWeeks,
+  seedBracket,
+  seasonPayoutRecipients,
+  simulateSeason,
+} from './season';
+import type { BracketMatchup, BracketResult } from './season';
 import { computeStandings } from './standings';
 import type { StandingRow } from './standings';
 
@@ -233,6 +239,34 @@ describe('seedBracket — the first round, seeded over the final weeks', () => {
 
   it('refuses a bracket wider than the standings provide', () => {
     expect(() => seedBracket(config(4, 10), seededRows(3))).toThrowError(/bracket/i);
+  });
+});
+
+describe('nextMatchup — the bracket advances through its results', () => {
+  const rows = seededRows(4);
+  const semis = seedBracket(config(4, 10), rows);
+
+  it('pairs the semifinal winners in the final, better original seed hosting', () => {
+    const results: BracketResult[] = [
+      { matchup: semis[0]!, winner: managerId('s4') }, // 4 upsets 1
+      { matchup: semis[1]!, winner: managerId('s2') }, // 2 beats 3
+    ];
+    expect(nextMatchup(semis, results, 10)).toMatchObject({
+      week: 10,
+      home: managerId('s2'),
+      away: managerId('s4'),
+      label: 'final',
+      seeds: [2, 4],
+    });
+  });
+
+  it('returns null after a final — the bracket is done', () => {
+    const final = seedBracket(config(2, 10), rows);
+    expect(nextMatchup(final, [{ matchup: final[0]!, winner: managerId('s1') }], 10)).toBeNull();
+  });
+
+  it('refuses to advance a round whose results do not line up', () => {
+    expect(() => nextMatchup(semis, [], 10)).toThrowError(/bracket/i);
   });
 });
 
