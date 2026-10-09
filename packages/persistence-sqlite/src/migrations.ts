@@ -7,13 +7,15 @@ export interface Migration {
 /**
  * The schema history, applied in order and tracked in `_migrations`. Each
  * migration runs once, inside its own transaction — a migration either lands
- * whole or not at all. The adapter is the only code in the system that knows
- * SQL; these strings are its whole vocabulary.
+ * whole or not at all. Split per repository area: a later change to one
+ * area's shape appends a new migration instead of rewriting history. The
+ * adapter is the only code in the system that knows SQL; these strings are
+ * its whole vocabulary.
  */
 export const MIGRATIONS: readonly Migration[] = [
   {
     id: 1,
-    name: 'initial-schema',
+    name: 'core-leagues',
     sql: `
       create table leagues (
         id text primary key,
@@ -21,7 +23,12 @@ export const MIGRATIONS: readonly Migration[] = [
         schedule_json text,
         created_at text not null
       );
-
+    `,
+  },
+  {
+    id: 2,
+    name: 'managers',
+    sql: `
       create table managers (
         id text not null,
         league_id text not null references leagues(id),
@@ -30,7 +37,12 @@ export const MIGRATIONS: readonly Migration[] = [
         joined_at text not null,
         primary key (league_id, id)
       );
-
+    `,
+  },
+  {
+    id: 3,
+    name: 'ledger-append-only',
+    sql: `
       create table ledger_entries (
         seq integer primary key autoincrement,
         id text not null,
@@ -56,12 +68,22 @@ export const MIGRATIONS: readonly Migration[] = [
       begin
         select raise(abort, 'ledger entries are append-only: DELETE rejected');
       end;
-
+    `,
+  },
+  {
+    id: 4,
+    name: 'draft-states',
+    sql: `
       create table draft_states (
         league_id text primary key references leagues(id),
         state_json text not null
       );
-
+    `,
+  },
+  {
+    id: 5,
+    name: 'players',
+    sql: `
       create table players (
         id text primary key,
         name text not null,
@@ -69,7 +91,12 @@ export const MIGRATIONS: readonly Migration[] = [
         projection_json text not null,
         variance real not null
       );
-
+    `,
+  },
+  {
+    id: 6,
+    name: 'season-results',
+    sql: `
       create table week_results (
         league_id text not null references leagues(id),
         week integer not null,

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { leagueId, managerId } from '@stakehouse/domain';
 import { ledgerEntry, leagueRecord, runRepositoryContract } from '@stakehouse/persistence';
+import { MIGRATIONS } from './migrations';
 import { createSqliteStore } from './sqliteStore';
 
 // One contract suite, second subject: the better-sqlite3 adapter. Every
@@ -72,7 +73,7 @@ describe('sqlite storage guarantees', () => {
       const applied = second.database.prepare('select count(*) as n from _migrations').get() as {
         n: number;
       };
-      expect(applied.n).toBe(1);
+      expect(applied.n).toBe(MIGRATIONS.length);
       second.leagues.create(leagueRecord('lg-after-reopen'));
       expect(second.leagues.get(leagueId('lg-after-reopen'))).not.toBeNull();
     } finally {
