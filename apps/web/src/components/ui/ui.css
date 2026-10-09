@@ -1,0 +1,140 @@
+/*
+ * Base component styles. Every rule consumes theme custom properties —
+ * no raw palette values allowed here.
+ */
+
+/* Button */
+.sh-btn {
+  font-family: var(--sh-font-ui);
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.5rem 1.1rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  color: var(--sh-cream);
+  background: var(--sh-felt-500);
+}
+.sh-btn:hover {
+  background: var(--sh-felt-700);
+}
+.sh-btn:focus-visible {
+  outline: 2px solid var(--sh-cream);
+  outline-offset: 2px;
+}
+.sh-btn--secondary {
+  background: transparent;
+  border-color: var(--sh-felt-500);
+}
+.sh-btn--secondary:hover {
+  border-color: var(--sh-felt-700);
+}
+.sh-btn--danger {
+  background: var(--sh-blood);
+}
+.sh-btn--danger:hover {
+  filter: brightness(1.1);
+}
+.sh-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Panel */
+.sh-panel {
+  background: var(--sh-felt-900);
+  border: 1px solid var(--sh-felt-700);
+  border-radius: 10px;
+  padding: 1rem 1.25rem 1.25rem;
+}
+.sh-panel--raised {
+  background: var(--sh-felt-700);
+}
+.sh-panel__title {
+  font-family: var(--sh-font-display);
+  font-weight: 600;
+  font-size: 1.15rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Table */
+.sh-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.sh-table__caption {
+  caption-side: top;
+  font-family: var(--sh-font-display);
+  text-align: left;
+  padding-bottom: 0.5rem;
+}
+.sh-table thead th {
+  background: var(--sh-felt-700);
+  color: var(--sh-cream);
+  text-align: left;
+  font-weight: 600;
+  padding: 0.5rem 0.75rem;
+}
+.sh-table tbody td {
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--sh-felt-700);
+}
+.sh-table__num {
+  font-family: var(--sh-font-mono);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Money — brass is for money and only money */
+.sh-money {
+  font-family: var(--sh-font-mono);
+  color: var(--sh-brass);
+  font-variant-numeric: tabular-nums;
+}
+.sh-money--negative {
+  color: var(--sh-blood);
+}
+
+/* Clock */
+.sh-clock {
+  font-family: var(--sh-font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--sh-cream);
+}
+.sh-clock--urgent {
+  animation: sh-pulse 1s ease-in-out infinite;
+}
+@keyframes sh-pulse {
+  50% {
+    opacity: 0.4;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sh-clock--urgent {
+    animation: none;
+  }
+}
+
+/* Badge */
+.sh-badge {
+  display: inline-block;
+  font-family: var(--sh-font-ui);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: var(--sh-felt-700);
+  color: var(--sh-cream);
+}
+.sh-badge--active {
+  background: var(--sh-felt-500);
+}
+.sh-badge--money {
+  background: var(--sh-brass);
+  color: var(--sh-felt-black);
+}
+.sh-badge--danger {
+  background: var(--sh-blood);
+}
