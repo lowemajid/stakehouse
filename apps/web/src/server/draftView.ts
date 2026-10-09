@@ -48,6 +48,13 @@ export interface DraftView {
   queues: Record<string, { queue: string[]; autopick: boolean }>;
   /** Seat identity for the room — who is on the clock, and whether they think. */
   seats: DraftSeat[];
+  /** Seats by id — names and AI flags every board and recap renders. */
+  managers: Record<string, { displayName: string; isAi: boolean }>;
+  /** The whole universe by id, so a pick keeps its name after leaving the
+   * live board — rosters, the picks feed, and the recap all resolve here. */
+  players: Record<string, { name: string; position: Position; projectedPoints: number }>;
+  /** The caller's own seat, null when signed out or seatless. */
+  you: string | null;
 }
 
 const FLEX_ELIGIBLE = new Set<Position>(['RB', 'WR', 'TE']);
@@ -119,6 +126,7 @@ export function buildDraftView(
   store: StakehouseStore,
   ops: LeagueOpsStore,
   league: LeagueRecord,
+  youSeatId: string | null = null,
 ): DraftView {
   const state = store.drafts.get(league.id);
   const config = league.config;
@@ -161,6 +169,18 @@ export function buildDraftView(
     queues[String(id)] = { queue: [...(queueMap[id] ?? [])], autopick: true };
   }
 
+  const seatsById: Record<string, { displayName: string; isAi: boolean }> = {};
+  for (const seat of managers) {
+    seatsById[String(seat.id)] = { displayName: seat.displayName, isAi: seat.isAi };
+  }
+  const players: Record<string, { name: string; position: Position; projectedPoints: number }> =
+    Object.fromEntries(
+      boardAll.map((entry) => [
+        entry.playerId,
+        { name: entry.name, position: entry.position, projectedPoints: entry.projectedPoints },
+      ]),
+    );
+
   const clock =
     state && state.status === 'live'
       ? {
@@ -184,5 +204,8 @@ export function buildDraftView(
       displayName: manager.displayName,
       isAi: manager.isAi,
     })),
+    managers: seatsById,
+    players,
+    you: youSeatId,
   };
 }

@@ -6,8 +6,8 @@ import { z } from 'zod';
 import type { ApiContext } from '../context';
 import { HttpError } from '../http';
 import { rejectDraft } from '../errorMapping';
-import { requireCommissioner, requireLeague, requireSeat } from '../guards';
-import { requireSession } from '../sessions';
+import { requireCommissioner, requireLeague, requireSeat, seatForEmail } from '../guards';
+import { requireSession, sessionOf } from '../sessions';
 import { buildDraftView } from '../draftView';
 
 /**
@@ -31,7 +31,15 @@ const queueSchema = z.object({
 export function draftRoutes(ctx: ApiContext): Router {
   const router = Router();
 
-  const view = (league: LeagueRecord) => buildDraftView(ctx.store, ctx.ops, league);
+  const view = (league: LeagueRecord, req?: Request) => {
+    // The caller's own seat, if any — the one fact the room needs to say
+    // "YOUR PICK" without guessing the server's id rules. SSE broadcasts
+    // call this without a request, so they stay seat-agnostic; only the
+    // per-caller responses answer per session.
+    const session = req ? sessionOf(req, ctx.cookieSecret) : null;
+    const seat = session ? seatForEmail(ctx, league, session.email) : null;
+    return buildDraftView(ctx.store, ctx.ops, league, seat ? String(seat.id) : null);
+  };
   // SSE events carry the same payload as the GET /draft response so one
   // client parser serves both.
   const publishView = (league: LeagueRecord): { draft: ReturnType<typeof view> } => ({
@@ -48,7 +56,7 @@ export function draftRoutes(ctx: ApiContext): Router {
 
   router.get('/leagues/:id/draft', (req, res) => {
     const league = requireLeague(ctx, req.params.id!);
-    res.json({ draft: view(league) });
+    res.json({ draft: view(league, req) });
   });
 
   // Live draft stream. A late joiner receives the current snapshot first,
@@ -106,7 +114,7 @@ export function draftRoutes(ctx: ApiContext): Router {
     const started = startDraft(state, ctx.now());
     ctx.store.drafts.save(league.id, started);
     ctx.broadcaster.publish(String(league.id), 'draft', publishView(league));
-    res.json({ draft: view(league) });
+    res.json({ draft: view(league, req) });
   });
 
   router.post('/leagues/:id/draft/pick', (req, res) => {
@@ -126,7 +134,7 @@ export function draftRoutes(ctx: ApiContext): Router {
     ctx.broadcaster.publish(String(league.id), 'draft', publishView(league));
     res.status(201).json({
       pick: result.next.picks[result.next.picks.length - 1],
-      draft: view(league),
+      draft: view(league, req),
     });
   });
 
@@ -157,7 +165,7 @@ export function draftRoutes(ctx: ApiContext): Router {
     ctx.broadcaster.publish(String(league.id), 'draft', publishView(league));
     res.json({
       autopicked: next.picks[next.picks.length - 1],
-      draft: view(league),
+      draft: view(league, req),
     });
   });
 
@@ -183,7 +191,7 @@ export function draftRoutes(ctx: ApiContext): Router {
     }
     ctx.store.drafts.save(league.id, current);
     ctx.broadcaster.publish(String(league.id), 'draft', publishView(league));
-    res.json({ fastForwarded: forwarded, draft: view(league) });
+    res.json({ fastForwarded: forwarded, draft: view(league, req) });
   });
 
   return router;

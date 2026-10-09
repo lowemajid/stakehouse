@@ -87,6 +87,7 @@ const payBuyInResultSchema = z.object({
   poolCents: z.number().int(),
 });
 
+
 export type ApiErrorDetail = { path: string; message: string };
 
 // ---------------------------------------------------------------------------
@@ -166,6 +167,13 @@ export type DraftView = {
   rosters: Record<string, RosterSlotView[]>;
   queues: Record<string, { queue: string[]; autopick: boolean }>;
   seats: DraftSeatView[];
+  /** Seats by id — names and AI flags every board and recap renders. */
+  managers: Record<string, { displayName: string; isAi: boolean }>;
+  /** The whole universe by id, so a pick keeps its name after leaving the
+   * live board — rosters, the picks feed, and the recap all resolve here. */
+  players: Record<string, { name: string; position: Position; projectedPoints: number }>;
+  /** The caller's own seat, null when signed out or seatless. */
+  you: string | null;
 };
 
 export const draftViewSchema = z.object({
@@ -178,6 +186,12 @@ export const draftViewSchema = z.object({
   rosters: z.record(z.string(), z.array(rosterSlotSchema)),
   queues: z.record(z.string(), z.object({ queue: z.array(z.string()), autopick: z.boolean() })),
   seats: z.array(draftSeatSchema),
+  managers: z.record(z.string(), z.object({ displayName: z.string(), isAi: z.boolean() })),
+  players: z.record(
+    z.string(),
+    z.object({ name: z.string(), position: positionSchema, projectedPoints: z.number() }),
+  ),
+  you: z.string().nullable(),
 });
 
 export type PlayerCardView = { id: string; name: string; position: Position };
@@ -365,6 +379,7 @@ export function createClient(options: ClientOptions = {}): StakehouseClient {
     },
 
     async postPick(
+
       leagueId: string,
       playerId: string,
     ): Promise<{ pick: DraftPickView; draft: DraftView }> {
