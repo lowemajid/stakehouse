@@ -11,7 +11,11 @@ export type DomainErrorCode =
   | 'invalid-payout-split'
   | 'invalid-ledger-entry'
   | 'invalid-timestamp'
-  | 'zero-weights';
+  | 'zero-weights'
+  | 'invalid-draft-state'
+  | 'invalid-pick-number'
+  | 'unknown-player'
+  | 'no-autopick-available';
 
 export class DomainError extends Error {
   readonly code: DomainErrorCode;

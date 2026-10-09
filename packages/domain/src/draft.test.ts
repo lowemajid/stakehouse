@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { managerId } from './brand';
 import type { ManagerId } from './brand';
 import { DomainError } from './errors';
-import { applyPick, createDraft, onTheClock, resolveDeadline, startDraft, totalPicks } from './draft';
+import {
+  applyPick,
+  createDraft,
+  onTheClock,
+  resolveDeadline,
+  startDraft,
+  totalPicks,
+} from './draft';
 import type { DraftState, PlayerRef, Position, QueueMap, RosterSlots } from './draft';
 
 const NOW = 1_800_000_000_000;
@@ -43,7 +50,7 @@ function mg(i: number): ManagerId {
   return managerId(`mgr-${i}`);
 }
 
-function mkDraft(size: number, boardMultiplier = 1): DraftState {
+function mkDraft(size: number, boardMultiplier = 3): DraftState {
   return createDraft({
     order: Array.from({ length: size }, (_, i) => mg(i + 1)),
     slots: SLOTS,
@@ -52,7 +59,7 @@ function mkDraft(size: number, boardMultiplier = 1): DraftState {
   });
 }
 
-function liveDraft(size: number, now = NOW, boardMultiplier = 1): DraftState {
+function liveDraft(size: number, now = NOW, boardMultiplier = 3): DraftState {
   return startDraft(mkDraft(size, boardMultiplier), now);
 }
 
@@ -64,24 +71,33 @@ function takenSet(state: DraftState): Set<string> {
 function isRosterable(state: DraftState, who: ManagerId, position: Position): boolean {
   const mine = state.picks.filter((p) => p.managerId === who);
   const board = new Map(state.board.map((p) => [p.playerId, p.position]));
-  const counts: Record<string, number> = {};
+  // Mirror of the engine's greedy slot replay — exact slots first, FLEX absorbs
+  // the overflow; a count shortcut would double-book the FLEX slot.
+  const used: Record<string, number> = {};
   for (const pick of mine) {
     const pos = board.get(pick.playerId);
-    if (pos) counts[pos] = (counts[pos] ?? 0) + 1;
+    if (!pos) continue;
+    if ((used[pos] ?? 0) < state.slots[pos]) {
+      used[pos] = (used[pos] ?? 0) + 1;
+    } else if (
+      pos !== 'K' &&
+      pos !== 'DEF' &&
+      pos !== 'QB' &&
+      (used.FLEX ?? 0) < state.slots.FLEX
+    ) {
+      used.FLEX = (used.FLEX ?? 0) + 1;
+    }
   }
-  if ((counts[position] ?? 0) < state.slots[position]) return true;
+  if ((used[position] ?? 0) < state.slots[position]) return true;
   const flexEligible = position === 'RB' || position === 'WR' || position === 'TE';
-  const flexUsed = (counts.RB ?? 0) + (counts.WR ?? 0) + (counts.TE ?? 0) - state.slots.RB - state.slots.WR - state.slots.TE;
-  return flexEligible && flexUsed < state.slots.FLEX;
+  return flexEligible && (used.FLEX ?? 0) < state.slots.FLEX;
 }
 
 /** First board-order player the manager can legally take right now. */
 function legalPlayerFor(state: DraftState, who: ManagerId): PlayerRef | null {
   const taken = takenSet(state);
   return (
-    state.board.find(
-      (p) => !taken.has(p.playerId) && isRosterable(state, who, p.position),
-    ) ?? null
+    state.board.find((p) => !taken.has(p.playerId) && isRosterable(state, who, p.position)) ?? null
   );
 }
 
@@ -214,15 +230,16 @@ describe('applyPick — the one guarded transition', () => {
       at: new Date(NOW + 1_000).toISOString(),
     });
     expect(result.next.deadline).toBe(NOW + 1_000 + 30_000);
-    expect(onTheClock(result.next, 2)).toEqual(mg(4)); // 4-manager snake: pick 2 belongs to the last seat
+    expect(onTheClock(result.next, 2)).toEqual(mg(2)); // round 1 walks 1→2→3→4 — the second seat
     expect(state.picks).toHaveLength(0); // input untouched — states are immutable
   });
 
   it('rejects a pick when the draft is not live', () => {
     const pending = mkDraft(4);
-    expect(
-      applyPick(pending, { managerId: mg(1), playerId: 'pl-001' }, NOW),
-    ).toMatchObject({ ok: false, reason: 'not-your-turn' });
+    expect(applyPick(pending, { managerId: mg(1), playerId: 'pl-001' }, NOW)).toMatchObject({
+      ok: false,
+      reason: 'not-your-turn',
+    });
 
     const live = liveDraft(4);
     let done = live;
@@ -243,19 +260,22 @@ describe('applyPick — the one guarded transition', () => {
 
   it('rejects an out-of-turn manager', () => {
     const state = liveDraft(4);
-    expect(
-      applyPick(state, { managerId: mg(2), playerId: 'pl-001' }, NOW),
-    ).toMatchObject({ ok: false, reason: 'not-your-turn' });
-    expect(
-      applyPick(state, { managerId: mg(4), playerId: 'pl-001' }, NOW),
-    ).toMatchObject({ ok: false, reason: 'not-your-turn' });
+    expect(applyPick(state, { managerId: mg(2), playerId: 'pl-001' }, NOW)).toMatchObject({
+      ok: false,
+      reason: 'not-your-turn',
+    });
+    expect(applyPick(state, { managerId: mg(4), playerId: 'pl-001' }, NOW)).toMatchObject({
+      ok: false,
+      reason: 'not-your-turn',
+    });
   });
 
   it('rejects a pick after the clock expires — no override after the fact', () => {
     const state = liveDraft(4); // deadline = NOW + 30_000
-    expect(
-      applyPick(state, { managerId: mg(1), playerId: 'pl-001' }, NOW + 30_001),
-    ).toMatchObject({ ok: false, reason: 'clock-expired' });
+    expect(applyPick(state, { managerId: mg(1), playerId: 'pl-001' }, NOW + 30_001)).toMatchObject({
+      ok: false,
+      reason: 'clock-expired',
+    });
   });
 
   it('allows a pick exactly at the deadline — the buzzer still counts', () => {
@@ -269,10 +289,11 @@ describe('applyPick — the one guarded transition', () => {
     const first = applyPick(state, { managerId: mg(1), playerId: 'pl-001' }, NOW);
     expect(first.ok).toBe(true);
     if (!first.ok) return;
-    // pick 2 in a 4-manager snake belongs to mgr-4
-    expect(
-      applyPick(first.next, { managerId: mg(4), playerId: 'pl-001' }, NOW + 1),
-    ).toMatchObject({ ok: false, reason: 'player-taken' });
+    // pick 2 in round 1 belongs to the second seat, mgr-2
+    expect(applyPick(first.next, { managerId: mg(2), playerId: 'pl-001' }, NOW + 1)).toMatchObject({
+      ok: false,
+      reason: 'player-taken',
+    });
   });
 
   it('rejects a player whose position fits no open slot (duplicate roster slot)', () => {
@@ -299,9 +320,10 @@ describe('applyPick — the one guarded transition', () => {
       state = r.next;
     }
     expect(onTheClock(state, 6)).toEqual(mg(1));
-    expect(
-      applyPick(state, { managerId: mg(1), playerId: 'rb-1' }, NOW),
-    ).toMatchObject({ ok: false, reason: 'duplicate-roster-slot' });
+    expect(applyPick(state, { managerId: mg(1), playerId: 'rb-1' }, NOW)).toMatchObject({
+      ok: false,
+      reason: 'duplicate-roster-slot',
+    });
     expect(state.picks).toHaveLength(5); // a rejection leaves the draft untouched
   });
 
@@ -339,9 +361,9 @@ describe('resolveDeadline — the clock answers for an idle manager', () => {
     const state = liveDraft(4);
     const withPick = resolveDeadline(state, {}, state.deadline! + 1); // pl-001 goes best-available
     expect(withPick.picks[0]!.playerId).toBe('pl-001');
-    const queues: QueueMap = { [mg(4)]: ['pl-001', 'pl-003'] }; // pl-001 was just taken
+    const queues: QueueMap = { [mg(2)]: ['pl-001', 'pl-003'] }; // pl-001 was just taken
     const next = resolveDeadline(withPick, queues, withPick.deadline! + 1);
-    expect(next.picks[1]).toMatchObject({ managerId: mg(4), playerId: 'pl-003' });
+    expect(next.picks[1]).toMatchObject({ managerId: mg(2), playerId: 'pl-003' });
   });
 
   it('skips queue entries the manager cannot roster, then falls back', () => {
@@ -404,7 +426,7 @@ describe('resolveDeadline — the clock answers for an idle manager', () => {
 
 describe('fast-forward — cascading autopicks to the end', () => {
   it('drives a live draft to completion by repeatedly answering expired clocks', () => {
-    let state = liveDraft(4, NOW, 2);
+    let state = liveDraft(4);
     const queues: QueueMap = { [mg(2)]: ['pl-010', 'pl-011'] };
     let guard = 0;
     while (state.status === 'live') {
@@ -427,7 +449,7 @@ describe('full draft property — seeded random seasons', () => {
     for (let seed = 1; seed <= SEEDS; seed++) {
       const rng = mulberry32(0x5eed + seed);
       const size = SIZES[Math.floor(rng() * SIZES.length)]!;
-      const fresh = liveDraft(size, NOW, 2);
+      const fresh = liveDraft(size);
       let state = fresh;
       let steps = 0;
       const queues: QueueMap = {
@@ -442,13 +464,17 @@ describe('full draft property — seeded random seasons', () => {
         const roll = rng();
         if (roll < 0.15) {
           const other = state.order[(state.order.indexOf(who) + 1) % state.order.length]!;
-          expect(applyPick(state, { managerId: other, playerId: anyUntakenPlayerId(state, rng) }, now)).toMatchObject({
+          expect(
+            applyPick(state, { managerId: other, playerId: anyUntakenPlayerId(state, rng) }, now),
+          ).toMatchObject({
             ok: false,
             reason: 'not-your-turn',
           });
         } else if (roll < 0.3 && state.picks.length > 0) {
           const victim = state.picks[Math.floor(rng() * state.picks.length)]!;
-          expect(applyPick(state, { managerId: who, playerId: victim.playerId }, now)).toMatchObject({
+          expect(
+            applyPick(state, { managerId: who, playerId: victim.playerId }, now),
+          ).toMatchObject({
             ok: false,
             reason: 'player-taken',
           });
@@ -489,10 +515,9 @@ describe('full draft property — seeded random seasons', () => {
         expect(counts.QB, `${label}: ${who} QB`).toBe(SLOTS.QB);
         expect(counts.K, `${label}: ${who} K`).toBe(SLOTS.K);
         expect(counts.DEF, `${label}: ${who} DEF`).toBe(SLOTS.DEF);
-        expect(
-          counts.RB + counts.WR + counts.TE,
-          `${label}: ${who} flex-capable total`,
-        ).toBe(SLOTS.RB + SLOTS.WR + SLOTS.TE + SLOTS.FLEX);
+        expect(counts.RB + counts.WR + counts.TE, `${label}: ${who} flex-capable total`).toBe(
+          SLOTS.RB + SLOTS.WR + SLOTS.TE + SLOTS.FLEX,
+        );
       }
       expect(totalPicks(state), label).toBe(size * SLOTS_PER_MANAGER);
     }
