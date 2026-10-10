@@ -9,6 +9,7 @@ import type {
 import type { LeagueRecord } from '@stakehouse/persistence';
 import type { StakehouseStore } from '@stakehouse/persistence';
 import type { LeagueOpsStore } from './opsStore';
+import { managerIdForEmail } from './sessions';
 
 /**
  * The draft view: everything a board needs, derived from stored state on every
@@ -44,16 +45,32 @@ export interface DraftView {
   pickSeconds: number;
   board: BoardEntry[];
   clock: { overall: number | null; managerId: string | null; deadline: number | null };
+  /** The commissioner's seat, so the room gates its two commissioner
+   * actions (fast-forward, start week 1) without a second lookup. Null when
+   * no commissioner is registered (or before the store boots the demo one). */
+  commissionerSeatId: string | null;
   rosters: Record<string, RosterSlot[]>;
   queues: Record<string, { queue: string[]; autopick: boolean }>;
   /** Seat identity for the room — who is on the clock, and whether they think. */
   seats: DraftSeat[];
+  /** Seats by id — names and AI flags every board and recap renders. */
+  managers: Record<string, { displayName: string; isAi: boolean }>;
+  /** The whole universe by id, so a pick keeps its name after leaving the
+   * live board — rosters, the picks feed, and the recap all resolve here. */
+  players: Record<string, { name: string; position: Position; projectedPoints: number }>;
+  /** The caller's own seat, null when signed out or seatless. */
+  you: string | null;
 }
 
 const FLEX_ELIGIBLE = new Set<Position>(['RB', 'WR', 'TE']);
 const DEFAULT_PICK_SECONDS = 30;
 
-/** Ranks the universe the way the board shows it: projection, then name, then id. */
+/**
+ * Ranks the universe the way the board shows it: projection, then name, then id.
+ * Points come from the seeder's `expectedPoints` — the sanctioned scorer for
+ * expectation-valued projections, whose fractional counters a raw scoreLine
+ * call rejects.
+ */
 export function rankedBoard(players: readonly PlayerCard[], scoring: ScoringRules): BoardEntry[] {
   return players
     .map((player) => ({
@@ -119,6 +136,7 @@ export function buildDraftView(
   store: StakehouseStore,
   ops: LeagueOpsStore,
   league: LeagueRecord,
+  youSeatId: string | null = null,
 ): DraftView {
   const state = store.drafts.get(league.id);
   const config = league.config;
@@ -161,6 +179,18 @@ export function buildDraftView(
     queues[String(id)] = { queue: [...(queueMap[id] ?? [])], autopick: true };
   }
 
+  const seatsById: Record<string, { displayName: string; isAi: boolean }> = {};
+  for (const seat of managers) {
+    seatsById[String(seat.id)] = { displayName: seat.displayName, isAi: seat.isAi };
+  }
+  const players: Record<string, { name: string; position: Position; projectedPoints: number }> =
+    Object.fromEntries(
+      boardAll.map((entry) => [
+        entry.playerId,
+        { name: entry.name, position: entry.position, projectedPoints: entry.projectedPoints },
+      ]),
+    );
+
   const clock =
     state && state.status === 'live'
       ? {
@@ -170,6 +200,14 @@ export function buildDraftView(
         }
       : { overall: null, managerId: null, deadline: null };
 
+  // Seat ids derive deterministically from emails (the same rule sessions.ts
+  // uses to find a caller's seat), so the commissioner's email maps to their
+  // seat id directly. A commissioner without a seat in this league yields an
+  // id that matches nobody — exactly the gate the room needs.
+  const commissionerEmail = ops.commissioners.get(String(league.id)) ?? null;
+  const commissionerSeatId =
+    commissionerEmail !== null ? managerIdForEmail(commissionerEmail) : null;
+
   return {
     status: state?.status ?? 'pending',
     order: order.map(String),
@@ -177,6 +215,7 @@ export function buildDraftView(
     pickSeconds: state?.pickSeconds ?? DEFAULT_PICK_SECONDS,
     board,
     clock,
+    commissionerSeatId,
     rosters,
     queues,
     seats: managers.map((manager) => ({
@@ -184,5 +223,8 @@ export function buildDraftView(
       displayName: manager.displayName,
       isAi: manager.isAi,
     })),
+    managers: seatsById,
+    players,
+    you: youSeatId,
   };
 }

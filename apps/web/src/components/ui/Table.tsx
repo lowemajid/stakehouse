@@ -1,4 +1,5 @@
 import './ui.css';
+import type { ReactNode } from 'react';
 
 export interface TableColumn<Row> {
   key: keyof Row & string;
@@ -14,7 +15,11 @@ export interface TableProps<Row> {
   className?: string;
 }
 
-/** Data table with a felt-700 head; numeric columns render in mono. */
+/**
+ * Data table with a felt-700 head; numeric columns render in mono. Cells may
+ * be plain values or rendered nodes — the board's row actions need buttons,
+ * the ledger needs text, both pass through untouched.
+ */
 export function Table<Row extends object>({ columns, rows, caption, className }: TableProps<Row>) {
   const classes = ['sh-table', className].filter(Boolean).join(' ');
   return (
@@ -38,7 +43,7 @@ export function Table<Row extends object>({ columns, rows, caption, className }:
           <tr key={index}>
             {columns.map((column) => (
               <td key={column.key} className={column.numeric ? 'sh-table__num' : undefined}>
-                {String(row[column.key])}
+                {row[column.key] as ReactNode}
               </td>
             ))}
           </tr>

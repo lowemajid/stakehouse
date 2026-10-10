@@ -665,7 +665,7 @@ export function generatePlayerUniverse(): PlayerCard[] {
  * the simulator uses, on a ×100-scaled stat line so fractional projections
  * stay exact in integer milli-points. Defenses add the points-allowed bonus.
  */
-function expectedPoints(line: StatLine, position: Position, rules: ScoringRules): number {
+export function expectedPoints(line: StatLine, position: Position, rules: ScoringRules): number {
   const scale = 100;
   const scaled: StatLine = {
     ...line,

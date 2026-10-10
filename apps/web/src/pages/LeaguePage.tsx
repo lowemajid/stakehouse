@@ -204,6 +204,9 @@ export function LeaguePage({ leagueId, tab }: { leagueId: string; tab: LeagueTab
         >
           The books
         </ShellLink>
+        <ShellLink href={`/leagues/${league.id}/draft`} className="sh-league__tab">
+          Draft room
+        </ShellLink>
       </nav>
 
       {tab === 'overview' ? (

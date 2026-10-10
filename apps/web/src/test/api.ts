@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 import type { StakehouseClient } from '@stakehouse/api-client';
 import { OPEN_LEAGUE_VIEW, SANDBOX_LEAGUE_VIEW, SANDBOX_LEDGER_VIEW } from './fixtures';
+import { draftViewFixture } from './draft';
 
 /**
  * A full StakehouseClient double for route-level tests. Every method is a vi.fn
@@ -11,17 +12,6 @@ export function makeFakeApi(
 ): StakehouseClient {
   // Route tests override what they care about; these defaults only need to be
   // structurally honest for methods no current test exercises.
-  const draftView = {
-    status: 'complete',
-    order: ['mgr-marge'],
-    picks: [],
-    pickSeconds: 30,
-    board: [],
-    clock: { overall: 0, managerId: null, deadline: null },
-    rosters: {},
-    queues: {},
-    seats: [],
-  };
   const base: Record<keyof StakehouseClient, unknown> = {
     signIn: vi.fn().mockResolvedValue({
       displayName: 'Marge Kowalski',
@@ -48,17 +38,19 @@ export function makeFakeApi(
       poolCents: 2500,
     }),
     getLedger: vi.fn().mockResolvedValue(SANDBOX_LEDGER_VIEW),
-    getDraft: vi.fn().mockResolvedValue(draftView),
-    startDraft: vi.fn().mockResolvedValue(draftView),
-    postPick: vi.fn().mockResolvedValue({
-      pick: {
-        overall: 1,
-        managerId: 'mgr-marge',
-        playerId: 'p-01',
-        at: '2026-10-02T12:00:00.000Z',
-      },
-      draft: draftView,
-    }),
+    getDraft: vi.fn().mockResolvedValue(draftViewFixture()),
+    startDraft: vi.fn().mockResolvedValue(draftViewFixture()),
+    postPick: vi.fn().mockImplementation((_leagueId: string, playerId: string) =>
+      Promise.resolve({
+        pick: {
+          overall: 1,
+          managerId: 'mgr-marge',
+          playerId,
+          at: '2026-10-02T12:00:00.000Z',
+        },
+        draft: draftViewFixture(),
+      }),
+    ),
     putQueue: vi
       .fn()
       .mockImplementation((_leagueId: string, queue: string[]) => Promise.resolve({ queue })),
@@ -66,12 +58,15 @@ export function makeFakeApi(
       autopicked: {
         overall: 1,
         managerId: 'mgr-marge',
-        playerId: 'p-01',
-        at: '2026-10-02T12:00:00.000Z',
+        playerId: 'p-2',
+        at: '2026-10-02T12:00:30.000Z',
       },
-      draft: draftView,
+      draft: draftViewFixture(),
     }),
-    postFastForward: vi.fn().mockResolvedValue({ fastForwarded: 0, draft: draftView }),
+    postFastForward: vi.fn().mockResolvedValue({
+      fastForwarded: 26,
+      draft: draftViewFixture({ status: 'complete' }),
+    }),
     listPlayers: vi.fn().mockResolvedValue([]),
     simulateNextWeek: vi.fn().mockResolvedValue({ week: 1, seasonComplete: false }),
     openDraftStream: vi.fn().mockReturnValue({ close: vi.fn() }),

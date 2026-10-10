@@ -1,6 +1,17 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import { draftedLeague, expectApiError, paidLeague, signIn, T0 } from './testSupport';
+import { generatePlayerUniverse } from '@stakehouse/seeder';
+import {
+  draftedLeague,
+  expectApiError,
+  LEAGUE_REQUEST,
+  makeApp,
+  paidLeague,
+  signIn,
+  T0,
+  USER,
+} from './testSupport';
+import { managerIdForEmail } from './sessions';
 
 /**
  * The draft route contract: snake integrity, guarded transitions, the
@@ -61,6 +72,74 @@ describe('GET /api/leagues/:id/draft', () => {
       Object.fromEntries(world.managerIds.map((id) => [id, { queue: [], autopick: true }])),
     );
     expect(draft.clock.deadline).toBeNull(); // draft complete — no clock running
+  });
+
+  it('names the commissioner seat so the room gates commissioner actions', async () => {
+    const world = await paidLeague();
+    const res = await request(world.app).get(`/api/leagues/${world.leagueId}/draft`);
+    expect(res.status).toBe(200);
+    // The league's commissioner is agent 0 (the creator).
+    expect(res.body.draft.commissionerSeatId).toBe(managerIdForEmail(USER(0).email));
+  });
+
+  it('boards the real seeder universe — fractional projections score, not crash', async () => {
+    // generatePlayerUniverse stores expectation-valued projections (fractional
+    // counters); the board must score them with the seeder's scaled arithmetic
+    // — a direct scoreLine call rejects fractional counts and 500s the room.
+    const world = makeApp();
+    for (const card of generatePlayerUniverse()) world.store.players.upsert(card);
+    const commissioner = await signIn(world.app, 0);
+    const created = await commissioner.post('/api/leagues').send(LEAGUE_REQUEST);
+    const leagueId: string = created.body.league.id;
+    const res = await request(world.app).get(`/api/leagues/${leagueId}/draft`);
+    expect(res.status).toBe(200);
+    expect(res.body.draft.board).toHaveLength(300);
+    for (const entry of res.body.draft.board) {
+      expect(Number.isFinite(entry.projectedPoints)).toBe(true);
+    }
+  });
+});
+
+describe('GET /api/leagues/:id/draft — who and what the room renders', () => {
+  it('carries the seat names and AI flags the board renders', async () => {
+    const world = await paidLeague();
+    const res = await request(world.app).get(`/api/leagues/${world.leagueId}/draft`);
+    expect(res.status).toBe(200);
+    expect(res.body.draft.managers).toStrictEqual(
+      Object.fromEntries(
+        world.managerIds.map((id, i) => [id, { displayName: `Manager ${i}`, isAi: false }]),
+      ),
+    );
+  });
+
+  it('carries the player map so picked players keep their names on the recap', async () => {
+    const world = await draftedLeague();
+    const res = await request(world.app).get(`/api/leagues/${world.leagueId}/draft`);
+    const draft = res.body.draft;
+    // Every pick resolves to a named, positioned, projected card.
+    for (const pick of draft.picks) {
+      expect(draft.players[pick.playerId]).toStrictEqual({
+        name: expect.any(String),
+        position: expect.any(String),
+        projectedPoints: expect.any(Number),
+      });
+    }
+    // And a player who left the live board still answers by id.
+    const firstPicked = draft.picks[0]!.playerId;
+    expect(draft.board.some((entry: { playerId: string }) => entry.playerId === firstPicked)).toBe(
+      false,
+    );
+    expect(draft.players[firstPicked]!.name).toBe('Player 0');
+  });
+
+  it('tells the caller which seat is theirs — and null when they hold none', async () => {
+    const world = await paidLeague();
+    const mine = await world.agents[0]!.get(`/api/leagues/${world.leagueId}/draft`);
+    expect(mine.body.draft.you).toBe(world.managerIds[0]);
+    const theirs = await world.agents[1]!.get(`/api/leagues/${world.leagueId}/draft`);
+    expect(theirs.body.draft.you).toBe(world.managerIds[1]);
+    const anonymous = await request(world.app).get(`/api/leagues/${world.leagueId}/draft`);
+    expect(anonymous.body.draft.you).toBeNull();
   });
 });
 

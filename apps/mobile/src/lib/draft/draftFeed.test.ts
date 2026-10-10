@@ -36,6 +36,15 @@ function view(overrides: Partial<DraftView> = {}): DraftView {
       'mgr-marge': { queue: [], autopick: true },
     },
     seats: [seat('mgr-ava', 'Ava Whitfield', false), seat('mgr-marge', 'Marge Kowalski', true)],
+    managers: {
+      'mgr-ava': { displayName: 'Ava Whitfield', isAi: false },
+      'mgr-marge': { displayName: 'Marge Kowalski', isAi: true },
+    },
+    players: {
+      'pl-1': { name: 'Dov Amado', position: 'QB', projectedPoints: 21.4 },
+    },
+    commissionerSeatId: 'mgr-ava',
+    you: 'mgr-ava',
     ...overrides,
   };
 }

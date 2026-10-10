@@ -21,6 +21,15 @@ describe('parsePath', () => {
     });
   });
 
+  it('maps the draft room route', () => {
+    expect(parsePath('/leagues/lg-sandbox/draft')).toEqual({
+      name: 'draft',
+      leagueId: 'lg-sandbox',
+    });
+    // The plain league route never swallows the draft path.
+    expect(parsePath('/leagues/lg-sandbox')).not.toEqual({ name: 'draft' });
+  });
+
   it('renders unknown paths as not-found, never a crash', () => {
     expect(parsePath('/nowhere')).toEqual({ name: 'notFound' });
     expect(parsePath('/leagues/')).toEqual({ name: 'notFound' });
@@ -35,6 +44,7 @@ describe('hrefFor', () => {
       { name: 'createLeague' },
       { name: 'league', leagueId: 'lg-sandbox', tab: 'overview' },
       { name: 'league', leagueId: 'lg-sandbox', tab: 'ledger' },
+      { name: 'draft', leagueId: 'lg-sandbox' },
     ] as const;
     for (const route of routes) {
       expect(parsePath(hrefFor(route))).toEqual(route);

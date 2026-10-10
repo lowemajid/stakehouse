@@ -12,6 +12,7 @@ export type Route =
   | { name: 'signIn' }
   | { name: 'createLeague' }
   | { name: 'league'; leagueId: string; tab: 'overview' | 'ledger' }
+  | { name: 'draft'; leagueId: string }
   | { name: 'notFound' };
 
 export function parsePath(pathname: string): Route {
@@ -27,6 +28,8 @@ export function parsePath(pathname: string): Route {
       tab: leagueMatch[2] ? 'ledger' : 'overview',
     };
   }
+  const draftMatch = /^\/leagues\/([^/]+)\/draft$/.exec(path);
+  if (draftMatch) return { name: 'draft', leagueId: draftMatch[1]! };
   return { name: 'notFound' };
 }
 
@@ -42,6 +45,8 @@ export function hrefFor(route: Route): string {
       return route.tab === 'ledger'
         ? `/leagues/${route.leagueId}/ledger`
         : `/leagues/${route.leagueId}`;
+    case 'draft':
+      return `/leagues/${route.leagueId}/draft`;
     case 'notFound':
       return '/';
   }

@@ -278,3 +278,158 @@ describe('money stays integer cents', () => {
     expect(league!.poolCents).toBe(1042);
   });
 });
+
+/** A live draft view in the exact shape the server's buildDraftView emits. */
+function draftViewFixture(status: 'pending' | 'live' | 'complete'): object {
+  return {
+    status,
+    order: ['mgr-marge', 'mgr-ai-1'],
+    picks:
+      status === 'pending'
+        ? []
+        : [
+            {
+              overall: 1,
+              managerId: 'mgr-marge',
+              playerId: 'p-0',
+              at: '2026-10-09T12:01:00.000Z',
+            },
+          ],
+    pickSeconds: 30,
+    board: [
+      { playerId: 'p-1', position: 'QB', name: 'Dov Amado', projectedPoints: 312.4 },
+      { playerId: 'p-2', position: 'RB', name: 'Silas Brummell', projectedPoints: 244.1 },
+    ],
+    clock:
+      status === 'live'
+        ? { overall: 2, managerId: 'mgr-ai-1', deadline: 1_791_230_430_000 }
+        : { overall: null, managerId: null, deadline: null },
+    commissionerSeatId: 'mgr-marge',
+    rosters: {
+      'mgr-marge': [{ playerId: 'p-0', position: 'QB', slot: 'QB' }],
+      'mgr-ai-1': [],
+    },
+    queues: {
+      'mgr-marge': { queue: ['p-1'], autopick: true },
+      'mgr-ai-1': { queue: [], autopick: true },
+    },
+    seats: [
+      { id: 'mgr-marge', displayName: 'Marge Kowalski', isAi: false },
+      { id: 'mgr-ai-1', displayName: 'Chester Royales', isAi: true },
+    ],
+    managers: {
+      'mgr-marge': { displayName: 'Marge Kowalski', isAi: false },
+      'mgr-ai-1': { displayName: 'Chester Royales', isAi: true },
+    },
+    players: {
+      'p-0': { name: 'Marcus Idowu', position: 'QB', projectedPoints: 318.2 },
+      'p-1': { name: 'Dov Amado', position: 'QB', projectedPoints: 312.4 },
+      'p-2': { name: 'Silas Brummell', position: 'RB', projectedPoints: 244.1 },
+    },
+    you: 'mgr-marge',
+  };
+}
+
+describe('draft operations', () => {
+  it('getDraft parses the view — the caller seat rides inside it', async () => {
+    const { client, calls } = clientWithResponses([ok({ draft: draftViewFixture('live') })]);
+    const result = await client.getDraft('lg-1');
+    expect(calls[0]!.url).toBe('/api/leagues/lg-1/draft');
+    expect(calls[0]!.init.method).toBe('GET');
+    expect(result.you).toBe('mgr-marge');
+    expect(result.commissionerSeatId).toBe('mgr-marge');
+    expect(result.clock.deadline).toBe(1_791_230_430_000);
+    expect(result.managers['mgr-ai-1']).toEqual({
+      displayName: 'Chester Royales',
+      isAi: true,
+    });
+    expect(result.players['p-0']).toEqual({
+      name: 'Marcus Idowu',
+      position: 'QB',
+      projectedPoints: 318.2,
+    });
+  });
+
+  it('startDraft posts to /start and parses the refreshed view', async () => {
+    const { client, calls } = clientWithResponses([ok({ draft: draftViewFixture('live') })]);
+    const result = await client.startDraft('lg-1');
+    expect(calls[0]!.url).toBe('/api/leagues/lg-1/draft/start');
+    expect(calls[0]!.init.method).toBe('POST');
+    expect(result.status).toBe('live');
+  });
+
+  it('postPick posts the playerId and parses the pick plus view', async () => {
+    const { client, calls } = clientWithResponses([
+      ok({
+        pick: {
+          overall: 1,
+          managerId: 'mgr-marge',
+          playerId: 'p-0',
+          at: '2026-10-09T12:01:00.000Z',
+        },
+        draft: draftViewFixture('live'),
+      }),
+    ]);
+    const result = await client.postPick('lg-1', 'p-0');
+    expect(calls[0]!.url).toBe('/api/leagues/lg-1/draft/pick');
+    expect(calls[0]!.init.method).toBe('POST');
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ playerId: 'p-0' });
+    expect(result.pick.playerId).toBe('p-0');
+  });
+
+  it('putQueue puts the ordered ids', async () => {
+    const { client, calls } = clientWithResponses([ok({ queue: ['p-1', 'p-2'] })]);
+    const result = await client.putQueue('lg-1', ['p-1', 'p-2']);
+    expect(calls[0]!.url).toBe('/api/leagues/lg-1/draft/queue');
+    expect(calls[0]!.init.method).toBe('PUT');
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ queue: ['p-1', 'p-2'] });
+    expect(result.queue).toEqual(['p-1', 'p-2']);
+  });
+
+  it('postAutopick parses the forced pick', async () => {
+    const { client, calls } = clientWithResponses([
+      ok({
+        autopicked: {
+          overall: 2,
+          managerId: 'mgr-ai-1',
+          playerId: 'p-1',
+          at: '2026-10-09T12:01:30.000Z',
+        },
+        draft: draftViewFixture('live'),
+      }),
+    ]);
+    const result = await client.postAutopick('lg-1');
+    expect(calls[0]!.url).toBe('/api/leagues/lg-1/draft/autopick');
+    expect(calls[0]!.init.method).toBe('POST');
+    expect(result.autopicked.playerId).toBe('p-1');
+  });
+
+  it('postFastForward parses the cascade count', async () => {
+    const { client, calls } = clientWithResponses([
+      ok({ fastForwarded: 34, draft: draftViewFixture('complete') }),
+    ]);
+    const result = await client.postFastForward('lg-1');
+    expect(calls[0]!.url).toBe('/api/leagues/lg-1/draft/fast-forward');
+    expect(calls[0]!.init.method).toBe('POST');
+    expect(result.fastForwarded).toBe(34);
+    expect(result.draft.status).toBe('complete');
+  });
+
+  it('simulateNextWeek posts to /simulate and parses the week label', async () => {
+    const { client, calls } = clientWithResponses([
+      ok({ week: 1, seasonComplete: false, result: { week: 1 } }),
+    ]);
+    const result = await client.simulateNextWeek('lg-1');
+    expect(calls[0]!.url).toBe('/api/leagues/lg-1/simulate');
+    expect(calls[0]!.init.method).toBe('POST');
+    expect(result.week).toBe(1);
+    expect(result.seasonComplete).toBe(false);
+  });
+
+  it('rejects a draft view missing the managers map — the board cannot render seats without it', async () => {
+    const view = draftViewFixture('pending') as Record<string, unknown>;
+    delete view.managers;
+    const { client } = clientWithResponses([ok({ draft: view, you: null })]);
+    await expect(client.getDraft('lg-1')).rejects.toThrow(ApiError);
+  });
+});
