@@ -61,3 +61,17 @@ cd apps/mobile && npx expo prebuild -p android --no-install
 `prebuild` also adds the `android`/`ios` run scripts and the Android package
 name to `apps/mobile/package.json` / `app.json` in your working tree — that
 mutation is expected and should not be committed by hand.
+
+## Deploy — build and serve on main
+
+The root [`ci.yml`](./ci.yml) has a `build-and-serve` job running on every PR
+and every push to `main`: after `npm run build`, it boots the real production
+server (`tsx apps/web/src/server/main.ts`) on one port and asserts
+`/api/health` answers and `/` serves the built SPA shell. This is the exact
+artifact shape the hosted project sandbox serves — the job fails before merge
+if the single-process build stops booting.
+
+Deployment itself is **pull-based**: CI runners cannot reach the project
+sandbox, so the sandbox runs a watchdog that fetches `origin/main`, rebuilds,
+and restarts when it moves — atomic swap, health-gated restart, rollback on a
+failed boot. The full story lives in [`ops/README.md`](../../ops/README.md).

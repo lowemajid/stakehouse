@@ -20,3 +20,27 @@ jobs:
       - run: npm run typecheck
       # test builds the web SPA first so the smoke test serves the real bundle
       - run: npm run test
+
+  build-and-serve:
+    name: build and serve on one port
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # Prove the deploy artifact — the exact shape the hosted project sandbox
+      # serves — actually boots: one process, one port, API health plus SPA shell.
+      - name: boot the production server and smoke it
+        run: |
+          PORT=8123 npm run start --workspace @stakehouse/web > /tmp/stakehouse-serve.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8123/api/health && break
+            sleep 1
+          done
+          curl -sf http://localhost:8123/api/health
+          curl -sf http://localhost:8123/ | grep -q '<div id="root">'
+          echo "single-port serve smoke passed"
