@@ -7,6 +7,8 @@ export const SANDBOX_LEAGUE_VIEW: LeagueView = {
   id: 'lg-sandbox',
   name: 'The Stakehouse Sandbox',
   createdAt: '2026-08-30T12:00:00.000Z',
+  commissionerEmail: null, // seeded, not created through the API — no commissioner at runtime
+  cancelledAt: null,
   config: {
     name: 'The Stakehouse Sandbox',
     entryFeeCents: cents(2500),
@@ -52,9 +54,14 @@ export const SANDBOX_LEDGER_VIEW: LedgerView = {
       amountCents: 2500,
       memo: 'simulated buy-in — demo checkout, no real money changes hands',
       at: '2026-10-01T12:00:00.000Z',
+      balanceAfterCents: 2500,
     },
   ],
   poolCents: 2500,
+  seats: [
+    { id: 'mgr-marge', displayName: 'Marge Kowalski', paidCents: 2500 },
+    { id: 'mgr-norm', displayName: 'Norm Grimsby', paidCents: 0 },
+  ],
 };
 
 /** A second fixture league with an open seat, for join/pay flows. */
@@ -62,6 +69,8 @@ export const OPEN_LEAGUE_VIEW: LeagueView = {
   id: 'lg-open',
   name: 'Tuesday Night Kitchen League',
   createdAt: '2026-10-02T12:00:00.000Z',
+  commissionerEmail: 'marge@example.com', // the test session's email — the desk is theirs
+  cancelledAt: null,
   config: {
     name: 'Tuesday Night Kitchen League',
     entryFeeCents: cents(5000), // distinct from the sandbox card so lobby assertions stay unambiguous

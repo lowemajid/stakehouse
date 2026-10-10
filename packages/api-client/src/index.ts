@@ -42,6 +42,10 @@ export type LeagueView = {
   config: LeagueConfig;
   seatsFilled: number;
   poolCents: number;
+  /** Who holds the commissioner's key — null when the league has none yet. */
+  commissionerEmail: string | null;
+  /** The instant the league was cancelled, if it was — the books stay readable. */
+  cancelledAt: string | null;
 };
 
 const leagueViewSchema = z.object({
@@ -51,6 +55,8 @@ const leagueViewSchema = z.object({
   config: leagueConfigSchema,
   seatsFilled: z.number().int().nonnegative(),
   poolCents: z.number().int(),
+  commissionerEmail: z.string().nullish(),
+  cancelledAt: z.string().nullish(),
 });
 
 export type LedgerEntryView = {
@@ -60,6 +66,8 @@ export type LedgerEntryView = {
   amountCents: number;
   memo: string;
   at: string;
+  /** The server-derived pool balance after this entry — absent on single-entry receipts. */
+  balanceAfterCents?: number;
 };
 
 const ledgerEntrySchema = z.object({
@@ -69,6 +77,16 @@ const ledgerEntrySchema = z.object({
   amountCents: z.number().int(),
   memo: z.string(),
   at: z.string(),
+  balanceAfterCents: z.number().int().optional(),
+});
+
+/** A seat in the books: who it is and the net it holds in the pool. */
+export type SeatView = { id: string; displayName: string; paidCents: number };
+
+const seatSchema = z.object({
+  id: z.string(),
+  displayName: z.string(),
+  paidCents: z.number().int(),
 });
 
 export type PayBuyInResult = {
@@ -77,6 +95,15 @@ export type PayBuyInResult = {
   poolCents: number;
 };
 
+/** Nullish wire fields arrive as one honest null — screens never see undefined. */
+function toLeagueView(league: z.infer<typeof leagueViewSchema>): LeagueView {
+  return {
+    ...league,
+    commissionerEmail: league.commissionerEmail ?? null,
+    cancelledAt: league.cancelledAt ?? null,
+  };
+}
+
 /**
  * The buy-in receipt must still admit the checkout is simulated — a server
  * that stops saying so fails at this boundary, before any UI can render it.
@@ -84,6 +111,35 @@ export type PayBuyInResult = {
 const payBuyInResultSchema = z.object({
   simulated: z.literal(true),
   entry: ledgerEntrySchema,
+  poolCents: z.number().int(),
+});
+
+export type CreditPoolInput = { amountCents: number; memo?: string };
+export type CreditPoolResult = { entry: LedgerEntryView; poolCents: number };
+export type RefundSeatResult = { entry: LedgerEntryView; poolCents: number };
+export type CancelLeagueResult = {
+  refunds: LedgerEntryView[];
+  poolCents: number;
+  cancelledAt: string;
+};
+
+const creditPoolInputSchema = z.object({
+  amountCents: z.number().int().positive(),
+  memo: z.string().max(200).optional(),
+});
+
+const moneyDeskResultSchema = z.object({ entry: ledgerEntrySchema, poolCents: z.number().int() });
+
+const cancelLeagueResultSchema = z.object({
+  refunds: z.array(ledgerEntrySchema),
+  poolCents: z.number().int(),
+  cancelledAt: z.string(),
+});
+
+export type DistributePayoutsResult = { entries: LedgerEntryView[]; poolCents: number };
+
+const distributePayoutsResultSchema = z.object({
+  entries: z.array(ledgerEntrySchema),
   poolCents: z.number().int(),
 });
 
@@ -248,7 +304,9 @@ export interface StakehouseClient {
   createLeague(config: LeagueConfig): Promise<LeagueView>;
   joinLeague(leagueId: string): Promise<ManagerView>;
   payBuyIn(leagueId: string): Promise<PayBuyInResult>;
-  getLedger(leagueId: string): Promise<{ entries: LedgerEntryView[]; poolCents: number }>;
+  getLedger(
+    leagueId: string,
+  ): Promise<{ entries: LedgerEntryView[]; poolCents: number; seats: SeatView[] }>;
   /** The live draft board: picks, rosters, queues, clock, and seats. */
   getDraft(leagueId: string): Promise<DraftView>;
   /** Commissioner: start a full, paid league's draft. */
@@ -267,6 +325,14 @@ export interface StakehouseClient {
   simulateNextWeek(leagueId: string): Promise<{ week: number; seasonComplete: boolean }>;
   /** Subscribe to the live draft stream (SSE) against the client's own origin. */
   openDraftStream(leagueId: string, handlers: DraftStreamHandlers): DraftStream;
+  /** Commissioner: credit the pool with a house-level entry. */
+  creditPool(leagueId: string, input: CreditPoolInput): Promise<CreditPoolResult>;
+  /** Commissioner: refund a seat's positive remaining net. */
+  refundSeat(leagueId: string, managerId: string): Promise<RefundSeatResult>;
+  /** Commissioner: cancel the league, refunding every paid seat's net. */
+  cancelLeague(leagueId: string): Promise<CancelLeagueResult>;
+  /** Commissioner: distribute the pool per the configured split. */
+  distributePayouts(leagueId: string): Promise<DistributePayoutsResult>;
 }
 
 export function createClient(options: ClientOptions = {}): StakehouseClient {
@@ -338,7 +404,7 @@ export function createClient(options: ClientOptions = {}): StakehouseClient {
     async listLeagues(): Promise<LeagueView[]> {
       const response = await request('/api/leagues', { method: 'GET' });
       const parsed = await parseBody(response, z.object({ leagues: z.array(leagueViewSchema) }));
-      return parsed.leagues;
+      return parsed.leagues.map(toLeagueView);
     },
 
     async createLeague(config: LeagueConfig): Promise<LeagueView> {
@@ -349,7 +415,7 @@ export function createClient(options: ClientOptions = {}): StakehouseClient {
         body: JSON.stringify(body),
       });
       const parsed = await parseBody(response, z.object({ league: leagueViewSchema }));
-      return parsed.league;
+      return toLeagueView(parsed.league);
     },
 
     async joinLeague(leagueId: string): Promise<ManagerView> {
@@ -363,11 +429,17 @@ export function createClient(options: ClientOptions = {}): StakehouseClient {
       return parseBody(response, payBuyInResultSchema);
     },
 
-    async getLedger(leagueId: string): Promise<{ entries: LedgerEntryView[]; poolCents: number }> {
+    async getLedger(
+      leagueId: string,
+    ): Promise<{ entries: LedgerEntryView[]; poolCents: number; seats: SeatView[] }> {
       const response = await request(`/api/leagues/${leagueId}/ledger`, { method: 'GET' });
       return parseBody(
         response,
-        z.object({ entries: z.array(ledgerEntrySchema), poolCents: z.number().int() }),
+        z.object({
+          entries: z.array(ledgerEntrySchema),
+          poolCents: z.number().int(),
+          seats: z.array(seatSchema),
+        }),
       );
     },
 
@@ -442,6 +514,36 @@ export function createClient(options: ClientOptions = {}): StakehouseClient {
     openDraftStream(leagueId: string, handlers: DraftStreamHandlers): DraftStream {
       // The stream rides the client's own origin — same cookies, same base.
       return openDraftStream({ baseUrl, leagueId, fetchImpl }, handlers);
+    },
+
+    async creditPool(leagueId: string, input: CreditPoolInput): Promise<CreditPoolResult> {
+      // Garbage fails locally, offline — the same discipline as createLeague.
+      const body = creditPoolInputSchema.parse(input);
+      const response = await request(`/api/leagues/${leagueId}/ledger/credit`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      return parseBody(response, moneyDeskResultSchema);
+    },
+
+    async refundSeat(leagueId: string, managerId: string): Promise<RefundSeatResult> {
+      const response = await request(`/api/leagues/${leagueId}/ledger/refund`, {
+        method: 'POST',
+        body: JSON.stringify({ managerId }),
+      });
+      return parseBody(response, moneyDeskResultSchema);
+    },
+
+    async cancelLeague(leagueId: string): Promise<CancelLeagueResult> {
+      const response = await request(`/api/leagues/${leagueId}/cancel`, { method: 'POST' });
+      return parseBody(response, cancelLeagueResultSchema);
+    },
+
+    async distributePayouts(leagueId: string): Promise<DistributePayoutsResult> {
+      const response = await request(`/api/leagues/${leagueId}/ledger/payouts/distribute`, {
+        method: 'POST',
+      });
+      return parseBody(response, distributePayoutsResultSchema);
     },
   };
 }

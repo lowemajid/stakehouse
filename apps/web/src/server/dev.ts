@@ -1,11 +1,12 @@
 import { createApp } from './app';
-import { bootStore } from './store';
+import { bootOps, bootStore } from './store';
 import { createServer } from 'vite';
 
 const port = Number(process.env.PORT ?? 3000);
 
 // One process, one port: Vite middleware serves the SPA in dev, Express owns /api.
-const app = createApp({ serveSpa: false, store: bootStore() });
+const store = bootStore();
+const app = createApp({ serveSpa: false, store, ops: bootOps(store) });
 const vite = await createServer({
   server: { middlewareMode: true },
   appType: 'spa',

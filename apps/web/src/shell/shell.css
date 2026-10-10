@@ -239,3 +239,128 @@
   color: var(--sh-cream);
   opacity: 0.85;
 }
+
+/* The books — the ledger is the product; give it the widest table in the house. */
+.sh-books__table {
+  width: 100%;
+}
+.sh-books__table .sh-books__memo {
+  color: var(--sh-cream);
+  opacity: 0.72;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+.sh-books__amount,
+.sh-books__pool {
+  font-weight: 600;
+}
+.sh-books__pool-label {
+  text-align: right;
+  font-family: var(--sh-font-ui);
+  color: var(--sh-cream);
+  opacity: 0.8;
+}
+.sh-books__table tfoot td {
+  border-top: 2px solid var(--sh-brass);
+  padding-top: 0.7rem;
+}
+
+/* A ledger row lands the instant money moves — slide in, never jump. */
+.sh-ledger__row--enter {
+  animation: sh-ledger-enter 0.45s ease-out both;
+}
+@keyframes sh-ledger-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sh-ledger__row--enter {
+    animation: none;
+  }
+}
+
+/*
+ * The money desk — the commissioner's controls over the pot. Brass stays
+ * strictly on money: the pool figure and nothing else.
+ */
+.sh-desk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sh-space-4, 16px);
+}
+.sh-desk__pool {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.sh-desk__pool-amount {
+  font-family: var(--sh-font-mono, 'IBM Plex Mono', monospace);
+  font-size: 28px;
+  color: var(--sh-brass);
+}
+.sh-desk__split-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--sh-font-mono, 'IBM Plex Mono', monospace);
+}
+.sh-desk__split-list li {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--sh-felt-500);
+}
+.sh-desk__actions {
+  display: flex;
+  gap: 12px;
+}
+.sh-desk__credit-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+}
+.sh-desk__seats-title,
+.sh-desk__seats h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  color: var(--sh-cream-dim, #b9b3a6);
+}
+.sh-desk__seat-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sh-desk__seat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--sh-felt-700);
+}
+.sh-desk__seat-net {
+  font-family: var(--sh-font-mono, 'IBM Plex Mono', monospace);
+  margin-left: auto;
+}
+.sh-desk__danger {
+  border-top: 1px solid var(--sh-felt-700);
+  padding-top: 16px;
+}
+.sh-desk__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sh-desk__confirm p {
+  margin: 0;
+}
+.sh-desk__voided {
+  margin: 0;
+  color: var(--sh-cream);
+}

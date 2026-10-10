@@ -103,6 +103,8 @@ export function leagueView(
   config: LeagueRecord['config'];
   seatsFilled: number;
   poolCents: number;
+  commissionerEmail: string | null;
+  cancelledAt: string | null;
 } {
   const entries = ctx.store.ledger.list(league.id);
   const poolCents = entries.reduce((sum, entry) => sum + entry.amountCents, 0);
@@ -113,5 +115,7 @@ export function leagueView(
     config: league.config,
     seatsFilled,
     poolCents,
+    commissionerEmail: ctx.ops.commissioners.get(String(league.id)) ?? null,
+    cancelledAt: ctx.ops.cancellations.get(String(league.id)) ?? null,
   };
 }

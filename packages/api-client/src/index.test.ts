@@ -93,6 +93,8 @@ function leagueViewFixture(config: LeagueConfig): object {
     config,
     seatsFilled: 3,
     poolCents: 7500,
+    commissionerEmail: 'majid@stakehouse.test',
+    cancelledAt: null,
   };
 }
 
@@ -204,14 +206,142 @@ describe('payBuyIn', () => {
 });
 
 describe('getLedger', () => {
-  it('parses entries and the derived pool', async () => {
+  it('parses entries, the derived pool, and the seats', async () => {
     const { client, calls } = clientWithResponses([
-      ok({ entries: [entryFixture], poolCents: 2500 }),
+      ok({
+        entries: [{ ...entryFixture, balanceAfterCents: 2500 }],
+        poolCents: 2500,
+        seats: [{ id: 'mgr-majid', displayName: 'Majid', paidCents: 2500 }],
+      }),
     ]);
     const ledger = await client.getLedger('lg-1');
     expect(ledger.poolCents).toBe(2500);
     expect(ledger.entries[0]!.kind).toBe('buy-in');
+    expect(ledger.entries[0]!.balanceAfterCents).toBe(2500);
+    expect(ledger.seats).toEqual([{ id: 'mgr-majid', displayName: 'Majid', paidCents: 2500 }]);
     expect(calls[0]!.url).toBe('/api/leagues/lg-1/ledger');
+  });
+});
+
+describe('creditPool', () => {
+  it('posts the amount and memo, returning the entry and the new pool', async () => {
+    const { client, calls } = clientWithResponses([
+      {
+        status: 201,
+        body: {
+          entry: {
+            ...entryFixture,
+            kind: 'commissioner-credit',
+            managerId: null,
+            amountCents: 500,
+          },
+          poolCents: 10_500,
+        },
+      },
+    ]);
+    const result = await client.creditPool('lg-1', {
+      amountCents: 500,
+      memo: 'commissioner promo',
+    });
+    expect(result.entry.kind).toBe('commissioner-credit');
+    expect(result.entry.managerId).toBeNull();
+    expect(result.poolCents).toBe(10_500);
+    expect(calls[0]!.url).toBe('/api/leagues/lg-1/ledger/credit');
+    expect(JSON.parse(String(calls[0]!.init.body))).toStrictEqual({
+      amountCents: 500,
+      memo: 'commissioner promo',
+    });
+  });
+
+  it('rejects non-positive amounts locally — no request is made', async () => {
+    const { client, calls } = clientWithResponses([]);
+    await expect(client.creditPool('lg-1', { amountCents: 0 })).rejects.toBeInstanceOf(ZodError);
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe('refundSeat', () => {
+  it('posts the seat id, returning the negative entry and the new pool', async () => {
+    const { client, calls } = clientWithResponses([
+      {
+        status: 201,
+        body: {
+          entry: { ...entryFixture, kind: 'refund', managerId: 'mgr-majid', amountCents: -2500 },
+          poolCents: 7500,
+        },
+      },
+    ]);
+    const result = await client.refundSeat('lg-1', 'mgr-majid');
+    expect(result.entry.kind).toBe('refund');
+    expect(result.entry.amountCents).toBe(-2500);
+    expect(result.poolCents).toBe(7500);
+    expect(calls[0]!.url).toBe('/api/leagues/lg-1/ledger/refund');
+    expect(JSON.parse(String(calls[0]!.init.body))).toStrictEqual({ managerId: 'mgr-majid' });
+  });
+});
+
+describe('cancelLeague', () => {
+  it('posts the cancellation, returning refunds, the emptied pool, and the timestamp', async () => {
+    const { client, calls } = clientWithResponses([
+      {
+        status: 201,
+        body: {
+          refunds: [
+            { ...entryFixture, kind: 'refund', managerId: 'mgr-majid', amountCents: -2500 },
+          ],
+          poolCents: 0,
+          cancelledAt: '2026-10-09T12:00:00.000Z',
+        },
+      },
+    ]);
+    const result = await client.cancelLeague('lg-1');
+    expect(result.refunds).toHaveLength(1);
+    expect(result.poolCents).toBe(0);
+    expect(result.cancelledAt).toBe('2026-10-09T12:00:00.000Z');
+    expect(calls[0]!.url).toBe('/api/leagues/lg-1/cancel');
+    expect(calls[0]!.init.method).toBe('POST');
+  });
+});
+
+describe('distributePayouts', () => {
+  it('posts the distribution, returning the payout entries and the emptied pool', async () => {
+    const { client, calls } = clientWithResponses([
+      {
+        status: 201,
+        body: {
+          entries: [
+            {
+              ...entryFixture,
+              kind: 'payout',
+              managerId: 'mgr-majid',
+              amountCents: -1250,
+              memo: 'season payout — 1st place',
+            },
+            {
+              ...entryFixture,
+              kind: 'payout',
+              managerId: 'mgr-norm',
+              amountCents: -750,
+              memo: 'season payout — 2nd place',
+            },
+            {
+              ...entryFixture,
+              kind: 'payout',
+              managerId: 'mgr-doris',
+              amountCents: -500,
+              memo: 'season payout — 3rd place',
+            },
+          ],
+          poolCents: 0,
+        },
+      },
+    ]);
+    const result = await client.distributePayouts('lg-1');
+    expect(result.entries).toHaveLength(3);
+    expect(result.entries[0]!.kind).toBe('payout');
+    expect(result.poolCents).toBe(0);
+    expect(calls[0]!.url).toBe('/api/leagues/lg-1/ledger/payouts/distribute');
+    expect(calls[0]!.init.method).toBe('POST');
   });
 });
 

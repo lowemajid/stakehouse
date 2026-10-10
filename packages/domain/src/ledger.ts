@@ -98,20 +98,64 @@ export function poolBalance(entries: readonly LedgerEntry[]): Cents {
   );
 }
 
+/** One manager's net position in the pool — buy-ins in, refunds back out. */
+export interface PaidTotal {
+  managerId: ManagerId;
+  paidCents: Cents;
+}
+
+/**
+ * The net each manager holds in the pool, derived from the entries: buy-ins
+ * accrue, refunds subtract (both carry pool-perspective signs, so both add).
+ * Payouts and pool-level credits are not contributions. A seat refunded to
+ * the cent stays visible at zero — "has nothing to refund" is information,
+ * and the refund planner needs it to skip the seat honestly.
+ */
+export function paidByManager(entries: readonly LedgerEntry[]): PaidTotal[] {
+  const net = new Map<ManagerId, Cents>();
+  for (const entry of entries) {
+    if (entry.managerId === null) continue;
+    if (entry.kind !== 'buy-in' && entry.kind !== 'refund') continue;
+    const soFar = net.get(entry.managerId) ?? ZERO_CENTS;
+    net.set(entry.managerId, addCents(soFar, entry.amountCents));
+  }
+  return [...net.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([manager, paidCents]) => ({ managerId: manager, paidCents }));
+}
+
+/**
+ * The books' running balance: each entry paired with the pool balance after
+ * it, folded in append order — the last row's balance is the pool balance,
+ * derived the same way, from the same entries.
+ */
+export function withRunningBalance(
+  entries: readonly LedgerEntry[],
+): Array<LedgerEntry & { balanceAfterCents: Cents }> {
+  let running = ZERO_CENTS;
+  return entries.map((entry) => {
+    if (!Number.isInteger(entry.amountCents)) {
+      throw new DomainError(
+        'not-an-integer',
+        `ledger entry ${entry.id} carries a non-integer amount`,
+      );
+    }
+    running = addCents(running, entry.amountCents);
+    return { ...entry, balanceAfterCents: running };
+  });
+}
+
 export function refundEntries(
   league: LeagueId,
   entries: readonly LedgerEntry[],
   at: string,
 ): NewEntry[] {
-  const paid = new Map<ManagerId, Cents>();
-  for (const entry of entries) {
-    if (entry.kind !== 'buy-in' || entry.managerId === null) continue;
-    const soFar = paid.get(entry.managerId) ?? ZERO_CENTS;
-    paid.set(entry.managerId, addCents(soFar, entry.amountCents));
-  }
-  return [...paid.entries()]
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([manager, paidCents]) => ({
+  // Net contributions: a seat that already took a partial refund gets only
+  // the remainder back on cancellation; a seat at net zero gets nothing,
+  // because a zero refund cannot exist under the sign rules.
+  return paidByManager(entries)
+    .filter(({ paidCents }) => paidCents > 0)
+    .map(({ managerId: manager, paidCents }) => ({
       leagueId: league,
       kind: 'refund' as const,
       managerId: manager,
